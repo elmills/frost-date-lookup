@@ -27,6 +27,17 @@ If you would like to contribute to this plugin, please fork the repository on Gi
 
 All notable changes to this project will be documented in this file.
 
+### [1.0.9]
+#### Added
+- Enhanced frost date calculation accuracy
+- Added caching mechanism for faster data retrieval
+#### Changed
+- Improved zipcode validation system
+- Updated NOAA/NWS API integration
+#### Fixed
+- Resolved display issues on mobile devices
+- Fixed date formatting inconsistencies across different locales
+
 ### [1.0.8]
 #### Changed
 - Latest improvements and optimizations
