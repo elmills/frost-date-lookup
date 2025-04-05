@@ -128,4 +128,60 @@ class GitHub_Plugin_Info {
         
         return $data;
     }
+
+    /**
+     * Get plugin changelog from README.md
+     *
+     * @param string $file Full path to the README.md file
+     * @return string HTML formatted changelog or error message
+     */
+    public function get_changelog($file = null) {
+        if (null === $file) {
+            $file = plugin_dir_path(dirname(__FILE__)) . 'README.md';
+        }
+
+        if (!file_exists($file)) {
+            return '<p class="notice notice-error">README.md file not found.</p>';
+        }
+
+        $readme_content = file_get_contents($file);
+        
+        // Look for the changelog section using proper regex
+        if (preg_match('/(?:^|\n)[#]{1,2}\s*Changelog\s*(?:\n|\r\n)(.*?)(?:\n[#]{1,2}|$)/s', $readme_content, $matches)) {
+            $changelog = trim($matches[1]);
+            
+            // Check if we actually have content
+            if (empty($changelog)) {
+                return '<p class="notice notice-warning">Changelog section found but appears to be empty.</p>';
+            }
+            
+            // Parse markdown to HTML if we have the capability
+            if (class_exists('Parsedown')) {
+                return Parsedown::instance()->text($changelog);
+            } else {
+                // Simple formatting fallback if Parsedown isn't available
+                $formatted = nl2br(esc_html($changelog));
+                $formatted = preg_replace('/\*\*(.*?)\*\*/s', '<strong>$1</strong>', $formatted);
+                $formatted = preg_replace('/\*(.*?)\*/s', '<em>$1</em>', $formatted);
+                return $formatted;
+            }
+        }
+        
+        return '<p class="notice notice-warning">No changelog section found in README.md file.</p>';
+    }
+
+    /**
+     * Display the changelog in the plugin info tab
+     *
+     * @param array $plugin_data Plugin data
+     * @param string $status Plugin status
+     * @param int $active_installs Number of active installs
+     * @param array $locales Locales
+     * @return void
+     */
+    public function display_changelog($plugin_data, $status, $active_installs, $locales) {
+        echo '<div class="changelog-content">';
+        echo wp_kses_post($this->get_changelog());
+        echo '</div>';
+    }
 }
