@@ -24,6 +24,7 @@ The Frost Date Lookup plugin retrieves the average frost-free date based on a pr
 If you would like to contribute to this plugin, please fork the repository on GitHub and submit a pull request.
 
 ## Changelog
+- **1.0.1** - Bug fixes and minor improvements. Enhanced compatibility with latest WordPress version. Optimized data retrieval from NOAA/NWS API.
 - **1.0.0** - Initial release of the Frost Date Lookup plugin.
 
 ## License
