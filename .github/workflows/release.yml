@@ -19,19 +19,19 @@ jobs:
 
       - name: Get repository name
         id: get_repo
-        run: echo "REPO_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
 
       - name: Get the version
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       - name: Create WordPress plugin build directory
         run: |
-          mkdir -p build/${{ steps.get_repo.outputs.REPO_NAME }}
+          mkdir -p build/${{ env.REPO_NAME }}
           # Copy all files except build files and GitHub configs
-          rsync -r --exclude=".git*" --exclude="build" --exclude="node_modules" --exclude=".DS_Store" ./ build/${{ steps.get_repo.outputs.REPO_NAME }}/
+          rsync -r --exclude=".git*" --exclude="build" --exclude="node_modules" --exclude=".DS_Store" ./ build/${{ env.REPO_NAME }}/
           cd build
-          zip -r ${{ steps.get_repo.outputs.REPO_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip ${{ steps.get_repo.outputs.REPO_NAME }}
+          zip -r ${{ env.REPO_NAME }}-${{ env.VERSION }}.zip ${{ env.REPO_NAME }}
 
       - name: Create Release
         id: create_release
@@ -40,7 +40,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          release_name: Release ${{ env.VERSION }}
           draft: false
           prerelease: false
           
@@ -50,7 +50,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/${{ steps.get_repo.outputs.REPO_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
-          asset_name: ${{ steps.get_repo.outputs.REPO_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
+          asset_path: ./build/${{ env.REPO_NAME }}-${{ env.VERSION }}.zip
+          asset_name: ${{ env.REPO_NAME }}-${{ env.VERSION }}.zip
           asset_content_type: application/zip
           overwrite: true

@@ -1,19 +1,58 @@
 <?php
 /**
  * Plugin Name: Frost Date Lookup
- * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.8
- * Author: Everette Mills
- * Author URI: https://blueboatsolutions.com
- * License: GPL2
- * Requires at least: 6.0
- * Requires PHP: 8.1
- * 
+ * Description: A plugin to lookup frost dates based on zip codes
+ * Version: 1.0.9
+ * Author: Your Name
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
-    exit; // Exit if accessed directly.
+// Exit if accessed directly
+if (!defined('ABSPATH')) {
+    exit;
 }
+
+// Define plugin constants
+define('FROST_DATE_LOOKUP_PATH', plugin_dir_path(__FILE__));
+define('FROST_DATE_LOOKUP_URL', plugin_dir_url(__FILE__));
+
+// Include necessary files
+require_once FROST_DATE_LOOKUP_PATH . 'includes/class-frost-date-lookup.php';
+
+// Initialize the plugin
+function frost_date_lookup_init() {
+    $plugin = new Frost_Date_Lookup();
+    $plugin->init();
+}
+add_action('plugins_loaded', 'frost_date_lookup_init');
+
+// Register shortcode - Make sure this is outside any class or function
+add_shortcode('frost_date_lookup', 'frost_date_lookup_shortcode');
+
+// Shortcode callback function
+function frost_date_lookup_shortcode($atts) {
+    // Start output buffering to capture the output
+    ob_start();
+    
+    // Include the form template
+    include FROST_DATE_LOOKUP_PATH . 'templates/lookup-form.php';
+    
+    // Get the buffered content and return it
+    $output = ob_get_clean();
+    return $output;
+}
+
+// Enqueue scripts and styles
+function frost_date_lookup_enqueue_scripts() {
+    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.9');
+    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.9', true);
+    
+    // Localize the script with new data
+    wp_localize_script('frost-date-lookup-script', 'frost_date_lookup', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('frost_date_lookup_nonce')
+    ));
+}
+add_action('wp_enqueue_scripts', 'frost_date_lookup_enqueue_scripts');
 
 // Include necessary files
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-loader.php';
@@ -88,7 +127,7 @@ function frost_date_lookup_plugin_info($res, $action, $args) {
         $res->sections = array(
             'description' => $plugin_data['Description'],
             'installation' => 'Install the plugin and activate it. Use the shortcode [frost_date_lookup] on any page or post.',
-            'changelog' => '<h4>1.0.8</h4><ul><li>Latest improvements</li></ul>'
+            'changelog' => '<h4>1.0.9</h4><ul><li>Latest improvements</li></ul>'
         );
         
         return $res;
