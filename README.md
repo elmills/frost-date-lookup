@@ -20,12 +20,21 @@ The Frost Date Lookup plugin retrieves the average frost-free date based on a pr
 - Use the shortcode `[frost_date_lookup zipcode="YOUR_ZIPCODE"]` to display frost-free date information on any post or page.
 - Replace `YOUR_ZIPCODE` with the desired zipcode to retrieve the relevant data.
 
-## Contributing
-If you would like to contribute to this plugin, please fork the repository on GitHub and submit a pull request.
-
 ## Changelog
 
 All notable changes to this project will be documented in this file.
+
+### [1.0.11]
+
+#### Changed
+- Improved update documentation process in GitHub
+- Enhanced plugin documentation workflow
+
+### [1.0.10]
+
+#### Fixed
+- Cleanedup main plugin file
+- Continued work to optimize the update process
 
 ### [1.0.9]
 #### Added

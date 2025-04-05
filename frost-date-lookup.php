@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Frost Date Lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.10
+ * Version: 1.0.11
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
@@ -27,6 +27,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-deactivato
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-i18n.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-api.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/class-github-plugin-info.php';
 
 
 // Activation and deactivation hooks
@@ -39,6 +40,20 @@ function frost_date_lookup_init() {
     $plugin->init();
 }
 add_action('plugins_loaded', 'frost_date_lookup_init');
+
+/**
+ * Initialize the GitHub plugin info handler
+ * It's best to do this early but after all required WP functions are available
+ */
+function frost_date_lookup_init_github_info() {
+    new Github_Plugin_Info(
+        'frost-date-lookup',      // Plugin slug (should match directory name)
+        __FILE__,                 // Plugin main file (__FILE__ gives full path)
+        'elmills',                // GitHub username
+        'frost-date-lookup'       // GitHub repository name
+    );
+}
+add_action('plugins_loaded', 'frost_date_lookup_init_github_info');
 
 function run_frost_date_lookup() {
     $plugin = new Frost_Date_Loader();
@@ -100,43 +115,10 @@ if ( file_exists( $update_checker_path ) ) {
         $info->sections = array(
             'description' => 'A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.',
             'installation' => 'Install the plugin and activate it. Use the shortcode [frost_date_lookup] on any page or post.',
-            'changelog' => '<h4>1.0.10</h4><ul><li>Latest improvements</li></ul>'
+            'changelog' => '<h4>1.0.11</h4><ul><li>Latest improvements</li></ul>'
         );
         return $info;
     });
 }
 
-/**
- * Custom Plugin Information
- */
-// Add filter to provide custom plugin information
-add_filter('plugins_api', 'frost_date_lookup_plugin_info', 10, 3);
-
-function frost_date_lookup_plugin_info($res, $action, $args) {
-    // Check if this is a request for our plugin
-    if ($action == 'plugin_information' && isset($args->slug) && $args->slug == 'frost-date-lookup') {
-        $plugin_data = get_plugin_data(__FILE__);
-        
-        $res = new stdClass();
-        $res->name = $plugin_data['Name'];
-        $res->slug = 'frost-date-lookup';
-        $res->version = $plugin_data['Version'];
-        $res->author = $plugin_data['Author'];
-        $res->author_profile = 'https://blueboatsolutions.com';
-        $res->requires = '6.0';  // Minimum WordPress version required
-        $res->tested = '6.4';    // WordPress version tested up to
-        $res->last_updated = date('Y-m-d');  // Today's date as last update
-        $res->download_link = 'https://github.com/elmills/frost-date-lookup/releases/';
-        $res->sections = array(
-            'description' => $plugin_data['Description'],
-            'installation' => 'Install the plugin and activate it. Use the shortcode [frost_date_lookup] on any page or post.',
-            'changelog' => '<h4>1.0.10</h4><ul><li>Latest improvements</li></ul>'
-        );
-        
-        return $res;
-    }
-    
-    // Not our plugin, let WordPress handle it
-    return $res;
-}
 ?>
