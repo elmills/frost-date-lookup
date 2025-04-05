@@ -27,6 +27,12 @@ If you would like to contribute to this plugin, please fork the repository on Gi
 
 All notable changes to this project will be documented in this file.
 
+### [1.0.8]
+#### Changed
+- Latest improvements and optimizations
+- Enhanced plugin stability
+- Updated compatibility with WordPress 6.4
+
 ### [1.0.7]
 #### Changed
 - Bug fix for update system
