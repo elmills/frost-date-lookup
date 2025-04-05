@@ -1,0 +1,41 @@
+msgid "Frost Date Lookup"
+msgstr ""
+
+msgid "Enter your zipcode to retrieve the average frost-free date."
+msgstr ""
+
+msgid "Average Frost-Free Date"
+msgstr ""
+
+msgid "Maximum Frost-Free Date (Last 15 Years)"
+msgstr ""
+
+msgid "Minimum Frost-Free Date (Last 15 Years)"
+msgstr ""
+
+msgid "Maximum Frost-Free Date (Last 30 Years)"
+msgstr ""
+
+msgid "Minimum Frost-Free Date (Last 30 Years)"
+msgstr ""
+
+msgid "Frost-free dates data retrieved successfully."
+msgstr ""
+
+msgid "Error retrieving frost-free dates. Please try again."
+msgstr ""
+
+msgid "Frost Date Information"
+msgstr ""
+
+msgid "Please enter a valid zipcode."
+msgstr ""
+
+msgid "Frost Date Lookup Settings"
+msgstr ""
+
+msgid "Settings saved successfully."
+msgstr ""
+
+msgid "Error saving settings."
+msgstr ""
