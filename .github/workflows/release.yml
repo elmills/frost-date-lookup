@@ -1,0 +1,41 @@
+name: Create WordPress Plugin Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Run workflow on version tags, e.g. v1.2.3
+
+jobs:
+  build:
+    name: Create Release and Asset
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get repository name
+        id: get_repo
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
+
+      - name: Get the version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create WordPress plugin build directory
+        run: |
+          mkdir -p build/${{ steps.get_repo.outputs.REPO_NAME }}
+          # Copy all files except build files and GitHub configs
+          rsync -r --exclude=".git*" --exclude="build" --exclude="node_modules" --exclude=".DS_Store" ./ build/${{ steps.get_repo.outputs.REPO_NAME }}/
+          cd build
+          zip -r ${{ steps.get_repo.outputs.REPO_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip ${{ steps.get_repo.outputs.REPO_NAME }}
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/${{ steps.get_repo.outputs.REPO_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
