@@ -25,6 +25,9 @@ If you would like to contribute to this plugin, please fork the repository on Gi
 
 ## Changelog
 
+### 1.0.5
+* Work on automatic update process
+
 ### 1.0.2
 * Version bump for maintenance release
 

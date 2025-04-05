@@ -2,12 +2,13 @@
 /**
  * Plugin Name: Frost Date Lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.2
+ * Version: 1.0.5
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
  * 
  * Changelog:
+ * 1.0.5 - Version update and plugin improvements
  * 1.0.1 - Fixed bug with data retrieval and improved stability of API requests
  */
 
@@ -39,15 +40,15 @@ run_frost_date_lookup();
 $update_checker_path = plugin_dir_path( __FILE__ ) . 'vendor/plugin-update-checker/plugin-update-checker.php';
 if ( file_exists( $update_checker_path ) ) {
     require 'vendor/plugin-update-checker/plugin-update-checker.php';
-    use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
     
-    $myUpdateChecker = PucFactory::buildUpdateChecker(
+    // Create the update checker without the namespace import
+    $myUpdateChecker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
         'https://github.com/elmills/frost-date-lookup/',
         __FILE__,
         'frost-date-lookup'
     );
     
-    //Set the branch that contains the stable release.
+    // Set the branch that contains the stable release.
     $myUpdateChecker->setBranch('stable-branch-name');
 }
 ?>
