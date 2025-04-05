@@ -25,15 +25,29 @@ If you would like to contribute to this plugin, please fork the repository on Gi
 
 ## Changelog
 
-### 1.0.5
-* Work on automatic update process
+All notable changes to this project will be documented in this file.
 
-### 1.0.2
-* Version bump for maintenance release
+### [1.0.6]
+#### Changed
+- Realigned components and system updates
 
-### 1.0.1
-- Bug fixes and minor improvements. Enhanced compatibility with latest WordPress version. Optimized data retrieval from NOAA/NWS API.
-- **1.0.0** - Initial release of the Frost Date Lookup plugin.
+### [1.0.5]
+#### Changed
+- Version update and plugin improvements
+
+### [1.0.2]
+#### Changed
+- Version bump for maintenance release
+
+### [1.0.1]
+#### Fixed
+- Bug with data retrieval and improved stability of API requests
+- Compatibility issues with latest WordPress version
+- Optimized data retrieval from NOAA/NWS API
+
+### [1.0.0]
+#### Added
+- Initial release of the Frost Date Lookup plugin
 
 ## License
 This plugin is licensed under the GPLv2 or later. See the LICENSE file for more details.
