@@ -41,20 +41,6 @@ function frost_date_lookup_init() {
 }
 add_action('plugins_loaded', 'frost_date_lookup_init');
 
-/**
- * Initialize the GitHub plugin info handler
- * It's best to do this early but after all required WP functions are available
- */
-function frost_date_lookup_init_github_info() {
-    new Github_Plugin_Info(
-        'frost-date-lookup',      // Plugin slug (should match directory name)
-        __FILE__,                 // Plugin main file (__FILE__ gives full path)
-        'elmills',                // GitHub username
-        'frost-date-lookup'       // GitHub repository name
-    );
-}
-add_action('plugins_loaded', 'frost_date_lookup_init_github_info');
-
 function run_frost_date_lookup() {
     $plugin = new Frost_Date_Loader();
     $plugin->run();
@@ -92,33 +78,10 @@ function frost_date_lookup_shortcode($atts) {
 /**
  * Plugin Update Checker
  */
-// Update checker - safely include if available
-$update_checker_path = plugin_dir_path( __FILE__ ) . 'vendor/plugin-update-checker/plugin-update-checker.php';
-if ( file_exists( $update_checker_path ) ) {
-    require 'vendor/plugin-update-checker/plugin-update-checker.php';
-    
-    // Create the update checker without the namespace import
-    $myUpdateChecker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
-        'https://github.com/elmills/frost-date-lookup/',
-        __FILE__,
-        'frost-date-lookup'
-    );
-    
-    // Set the branch that contains the stable release.
-    $myUpdateChecker->setBranch('main'); // Use your primary branch name (main or master)
-    
-    // Optional: If using release assets for distribution
-    $myUpdateChecker->getVcsApi()->enableReleaseAssets();
-    
-    // Provide custom plugin information for the update checker
-    $myUpdateChecker->addResultFilter(function ($info) {
-        $info->sections = array(
-            'description' => 'A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.',
-            'installation' => 'Install the plugin and activate it. Use the shortcode [frost_date_lookup] on any page or post.',
-            'changelog' => '<h4>1.0.11</h4><ul><li>Latest improvements</li></ul>'
-        );
-        return $info;
-    });
-}
+new GitHub_Plugin_Info(
+    'https://github.com/elmills/frost-date-lookup/',
+    FROST_DATE_LOOKUP_FILE,
+    'frost-date-lookup'
+);
 
 ?>

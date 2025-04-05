@@ -1,5 +1,15 @@
 # Frost Date Lookup Plugin
 
+Plugin Name: Frost Date Lookup
+Version: 1.0.12
+Requires at least: 6.0
+Tested up to: 6.4
+Author: Everette Mills
+Author URI: https://blueboatsolutions.com
+License: GPL-2.0+
+License URI: http://www.gnu.org/licenses/gpl-2.0.txt
+
+
 ## Description
 The Frost Date Lookup plugin retrieves the average frost-free date based on a provided zipcode, along with the maximum and minimum frost-free dates from the last 15 years and the last 30 years using NOAA/NWS data. This plugin is designed to help gardeners and farmers determine the best planting times based on frost-free dates.
 
@@ -23,6 +33,11 @@ The Frost Date Lookup plugin retrieves the average frost-free date based on a pr
 ## Changelog
 
 All notable changes to this project will be documented in this file.
+
+### [1.0.11]
+
+#### Changed
+- Using functions within updater plugin to pull documentation from readme.
 
 ### [1.0.11]
 
