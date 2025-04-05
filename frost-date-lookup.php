@@ -2,15 +2,13 @@
 /**
  * Plugin Name: Frost Date Lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
+ * Requires at least: 6.0
+ * Requires PHP: 8.1
  * 
- * Changelog:
- * 1.0.6 - Realigned components and system updates
- * 1.0.5 - Version update and plugin improvements
- * 1.0.1 - Fixed bug with data retrieval and improved stability of API requests
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,7 +22,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-deactivato
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-i18n.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-api.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-updater.php';
+//require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-updater.php';
 
 // Activation and deactivation hooks
 register_activation_hook( __FILE__, array( 'Frost_Date_Activator', 'activate' ) );

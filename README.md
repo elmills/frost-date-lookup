@@ -27,6 +27,10 @@ If you would like to contribute to this plugin, please fork the repository on Gi
 
 All notable changes to this project will be documented in this file.
 
+### [1.0.7]
+#### Changed
+- Bug fix for update system
+
 ### [1.0.6]
 #### Changed
 - Realigned components and system updates
