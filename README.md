@@ -1,7 +1,7 @@
 # Frost Date Lookup Plugin
 
 - Plugin Name: Frost Date Lookup
-- Version: 1.0.24
+- Version: 1.0.25
 - Requires at least: 6.0
 - Tested up to: 6.4
 - Author: Everette Mills
@@ -33,6 +33,13 @@ The Frost Date Lookup plugin retrieves the average frost-free date based on a pr
 ## Changelog
 
 All notable changes to this project will be documented in this file.
+
+### [1.0.25]
+#### Fixed
+- Improved update detection mechanism for more reliable version checking
+- Enhanced readme.txt generation with proper metadata formatting
+- Fixed "Available Version: Unknown" display in update diagnostics
+- Added additional cache clearing for more consistent update checking
 
 ### [1.0.24]
 #### Fixed

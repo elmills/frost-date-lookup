@@ -208,12 +208,28 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             $md_content = file_get_contents($readme_md_path);
             $txt_content = '';
             
-            // Extract plugin name from H1
+            // Get plugin data from the plugin file header
+            if (function_exists('get_plugin_data')) {
+                $plugin_data = get_plugin_data($this->plugin_file);
+            } else {
+                // Fallback if function not available
+                $plugin_data = [
+                    'Name' => 'Frost Date Lookup',
+                    'Version' => '1.0.25',
+                    'Author' => 'Everette Mills',
+                    'AuthorURI' => 'https://blueboatsolutions.com',
+                    'Description' => 'A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.'
+                ];
+            }
+            
+            // Extract plugin name with fallbacks
             preg_match('/^#\s+(.*?)$/m', $md_content, $plugin_name_matches);
-            $plugin_name = isset($plugin_name_matches[1]) ? $plugin_name_matches[1] : get_plugin_data($this->plugin_file)['Name'];
+            $plugin_name = isset($plugin_name_matches[1]) ? trim($plugin_name_matches[1]) : $plugin_data['Name'];
+            
+            // Start building the readme.txt format
             $txt_content .= "=== $plugin_name ===\n";
             
-            // Add metadata
+            // Add contributor metadata
             $txt_content .= "Contributors: {$this->metadata['contributors']}\n";
             
             // Add donate link only if provided
@@ -221,13 +237,9 @@ if (!class_exists('GitHub_Plugin_Updater')) {
                 $txt_content .= "Donate link: {$this->metadata['donate_link']}\n";
             }
             
-            // Get author information from plugin header
-            $plugin_data = get_plugin_data($this->plugin_file);
-            $author_name = !empty($plugin_data['Author']) ? $plugin_data['Author'] : 'Everette Mills';
+            // Get author information - ensure all HTML is properly stripped
+            $author_name = !empty($plugin_data['Author']) ? strip_tags($plugin_data['Author']) : 'Everette Mills';
             $author_url = !empty($plugin_data['AuthorURI']) ? $plugin_data['AuthorURI'] : 'https://blueboatsolutions.com';
-            
-            $txt_content .= "Author: $author_name\n";
-            $txt_content .= "Author URI: $author_url\n";
             
             $txt_content .= "Tags: {$this->metadata['tags']}\n";
             
@@ -240,65 +252,87 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             preg_match('/^## Tested up to\s*\n(.*?)$/m', $md_content, $tested_matches);
             $tested = isset($tested_matches[1]) ? trim($tested_matches[1]) : '';
             if (empty($tested)) {
-                $tested = get_bloginfo('version');
+                $tested = function_exists('get_bloginfo') ? get_bloginfo('version') : '6.4'; // Fallback value
             }
             $txt_content .= "Tested up to: $tested\n";
             
-            // Extract version from plugin header or from the last changelog entry
-            $plugin_data = get_plugin_data($this->plugin_file);
-            $version = $plugin_data['Version'];
+            // Set stable tag from plugin version
+            $version = !empty($plugin_data['Version']) ? $plugin_data['Version'] : '1.0.25';
             
-            // Fallback: Try to extract version from changelog
+            // Fallback: Try to extract version from changelog if still empty
             if (empty($version)) {
                 preg_match('/^### ([\d\.]+)/m', $md_content, $version_matches);
                 $version = isset($version_matches[1]) ? $version_matches[1] : '1.0.0';
             }
             
             $txt_content .= "Stable tag: $version\n";
-            // Extract requires php
+            
+            // Extract requires PHP
             preg_match('/^## Requires PHP\s*\n(.*?)$/m', $md_content, $requires_php_matches);
             $requires_php = isset($requires_php_matches[1]) ? trim($requires_php_matches[1]) : 
-                            (isset($this->metadata['requires_php']) ? $this->metadata['requires_php'] : '5.6');
+                           (isset($this->metadata['requires_php']) ? $this->metadata['requires_php'] : '7.0');
             $txt_content .= "Requires PHP: $requires_php\n";
+            
+            // License information
             $txt_content .= "License: {$this->metadata['license']}\n";
             $txt_content .= "License URI: {$this->metadata['license_uri']}\n\n";
             
-            // Extract short description
+            // Extract short description and clean up formatting
             preg_match('/^#.*?\n(.*?)(?=^##|\z)/ms', $md_content, $short_desc_matches);
             $short_desc = isset($short_desc_matches[1]) ? trim($short_desc_matches[1]) : '';
+            
+            // Fix bullet points, making sure they're properly formatted
+            $short_desc = preg_replace('/^- (.*?)$/m', '$1', $short_desc);
             $txt_content .= $short_desc . "\n\n";
             
             // Extract description
             preg_match('/^## Description\s*\n(.*?)(?=^##|\z)/ms', $md_content, $desc_matches);
             $description = isset($desc_matches[1]) ? trim($desc_matches[1]) : '';
+            // Fix bullet points in description
+            $description = preg_replace('/^- (.*?)$/m', '* $1', $description);
             $txt_content .= "== Description ==\n\n" . $description . "\n\n";
             
             // Extract installation
             preg_match('/^## Installation\s*\n(.*?)(?=^##|\z)/ms', $md_content, $install_matches);
             $installation = isset($install_matches[1]) ? trim($install_matches[1]) : '';
+            // Fix bullet points in installation
+            $installation = preg_replace('/^- (.*?)$/m', '* $1', $installation);
             $txt_content .= "== Installation ==\n\n" . $installation . "\n\n";
             
             // Extract usage as FAQ
             preg_match('/^## Usage\s*\n(.*?)(?=^##|\z)/ms', $md_content, $usage_matches);
             $usage = isset($usage_matches[1]) ? trim($usage_matches[1]) : '';
             if (!empty($usage)) {
+                // Fix bullet points in usage/FAQ
+                $usage = preg_replace('/^- (.*?)$/m', '* $1', $usage);
                 $txt_content .= "== Frequently Asked Questions ==\n\n";
                 $txt_content .= "= How do I use this plugin? =\n\n" . $usage . "\n\n";
             }
             
-            // Extract changelog
-            preg_match('/^## Changelog\s*\n(.*?)(?=^##|\z)/ms', $md_content, $changelog_matches);
-            $changelog = isset($changelog_matches[1]) ? trim($changelog_matches[1]) : '';
+            // Extract changelog with proper formatting
             $txt_content .= "== Changelog ==\n\n";
             
-            // Convert markdown changelog format to WordPress format
-            $changelog = preg_replace('/^### (.*?)$/m', "= $1 =", $changelog);
-            $changelog = preg_replace('/^\* (.*?)$/m', "* $1", $changelog);
+            // Try to find and extract the changelog section
+            preg_match('/^## Changelog\s*\n(.*?)(?=^##|\z)/ms', $md_content, $changelog_matches);
             
-            $txt_content .= $changelog;
+            if (isset($changelog_matches[1]) && !empty(trim($changelog_matches[1]))) {
+                $changelog = trim($changelog_matches[1]);
+                
+                // Format version headers and entries properly
+                $changelog = preg_replace('/^### ([\d\.]+)$/m', "= $1 =", $changelog);
+                $changelog = preg_replace('/^- (.*?)$/m', "* $1", $changelog);
+                
+                $txt_content .= $changelog;
+            } else {
+                // If no changelog found, create one based on current version
+                $txt_content .= "= $version =\n* Initial release or version update\n\n";
+            }
             
-            // Write to readme.txt
-            return (bool) file_put_contents($readme_txt_path, $txt_content);
+            // Write to readme.txt - ensure we have write permissions
+            $write_result = file_put_contents($readme_txt_path, $txt_content);
+            
+            // Return success or failure
+            return ($write_result !== false);
         }
 
         /**

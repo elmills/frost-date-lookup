@@ -3,7 +3,7 @@
  * Plugin Name: Frost Date Lookup
  * Plugin URI: https://github.com/elmills/frost-date-lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.24
+ * Version: 1.0.25
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
@@ -50,8 +50,8 @@ run_frost_date_lookup();
 
 // Enqueue scripts and styles
 function frost_date_lookup_enqueue_scripts() {
-    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.24');
-    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.24', true);
+    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.25');
+    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.25', true);
     
     // Localize the script with new data
     wp_localize_script('frost-date-lookup-script', 'frost_date_lookup', array(
@@ -306,10 +306,18 @@ function force_plugin_update_check() {
         return;
     }
     
-    // Clear update cache
+    // Force readme.txt generation first
+    force_readme_txt_generation(true);
+    
+    // Clear all update-related caches
     delete_site_transient('update_plugins');
     delete_site_transient('puc_check_count_' . $GLOBALS['plugin_slug']);
     delete_site_transient('puc_request_info_' . $GLOBALS['plugin_slug']);
+    
+    // Also clear plugin-specific transients that might be cached
+    global $wpdb;
+    $like = $wpdb->esc_like('puc_request_info_') . '%' . $wpdb->esc_like($GLOBALS['plugin_slug']);
+    $wpdb->query("DELETE FROM $wpdb->options WHERE option_name LIKE '$like'");
     
     // Force WordPress to check for plugin updates
     wp_update_plugins();
@@ -317,7 +325,7 @@ function force_plugin_update_check() {
     // Add admin notice with diagnostic info
     add_action('admin_notices', 'display_update_debug_info');
 }
-add_action('admin_init', 'force_plugin_update_check');
+add_action('admin_init', 'force_plugin_update_check', 5); // Lower priority to run earlier
 
 /**
  * Display diagnostic information about the update process
