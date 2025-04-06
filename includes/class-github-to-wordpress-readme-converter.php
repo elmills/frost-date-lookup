@@ -8,538 +8,436 @@
 
  class GitHub_To_WordPress_Readme_Converter {
     /**
-     * The content of the README.md file.
-     *
+     * The raw markdown content
+     * 
      * @var string
      */
     private $markdown_content;
     
     /**
-     * The plugin data extracted from the README.md file.
-     *
+     * The processed readme.txt content
+     * 
+     * @var string
+     */
+    private $readme_content;
+    
+    /**
+     * The metadata extracted from the markdown
+     * 
      * @var array
      */
-    private $plugin_data;
+    private $metadata = [];
     
     /**
-     * Constructor.
-     *
-     * @param string $file_path Path to the README.md file.
+     * Constructor
+     * 
+     * @param string $markdown_content_or_path The Markdown content or file path to convert
      */
-    public function __construct( $file_path ) {
-        if ( file_exists( $file_path ) ) {
-            $this->markdown_content = file_get_contents( $file_path );
-            $this->parse_plugin_data();
-        } else {
-            throw new Exception( 'README.md file not found at: ' . $file_path );
+    public function __construct($markdown_content_or_path = '') {
+        if (!empty($markdown_content_or_path)) {
+            // Check if it's a file path
+            if (file_exists($markdown_content_or_path) && is_readable($markdown_content_or_path)) {
+                $markdown_content = file_get_contents($markdown_content_or_path);
+                $this->set_markdown_content($markdown_content);
+            } else {
+                // Assume it's the content directly
+                $this->set_markdown_content($markdown_content_or_path);
+            }
         }
     }
     
     /**
-     * Parse plugin data from the README.md file.
+     * Set the markdown content
+     * 
+     * @param string $markdown_content The Markdown content to convert
+     * @return GitHub_To_WordPress_Readme_Converter
      */
-    private function parse_plugin_data() {
-        $this->plugin_data = array(
-            'name'              => '',
-            'version'           => '',
-            'requires'          => '',
-            'tested'            => '',
-            'requires_php'      => '',
-            'author'            => '',
-            'author_uri'        => '',
-            'contributors'      => array(),
-            'license'           => '',
-            'license_uri'       => '',
-            'tags'              => array(),
-            'description'       => '',
+    public function set_markdown_content($markdown_content) {
+        $this->markdown_content = $markdown_content;
+        return $this;
+    }
+    
+    /**
+     * Convert markdown to readme.txt
+     * 
+     * @return string The converted readme.txt content
+     */
+    public function convert() {
+        if (empty($this->markdown_content)) {
+            return '';
+        }
+        
+        // Extract metadata and sections
+        $this->extract_metadata();
+        $sections = $this->extract_sections();
+        
+        // Build the readme.txt content
+        $this->build_header();
+        $this->build_sections($sections);
+        
+        return $this->readme_content;
+    }
+    
+    /**
+     * Extract metadata from the markdown content
+     */
+    private function extract_metadata() {
+        // Default metadata values
+        $this->metadata = [
+            'plugin_name' => '',
+            'version' => '',
+            'requires_php' => '',
+            'tested_up_to' => '',
+            'author' => '',
+            'author_uri' => '',
+            'license' => '',
+            'license_uri' => '',
+            'contributors' => '',
+            'tags' => '',
+            'requires_at_least' => '5.0',
+            'stable_tag' => '',
             'short_description' => '',
-            'sections'          => array(),
-            'changelog'         => array(),
-        );
+        ];
         
-        // Extract plugin name from heading
-        if ( preg_match( '/^# (.+)$/m', $this->markdown_content, $matches ) ) {
-            $this->plugin_data['name'] = trim( $matches[1] );
+        // Plugin name (usually the first H1)
+        if (preg_match('/^#\s+(.*?)$/m', $this->markdown_content, $matches)) {
+            $this->metadata['plugin_name'] = trim($matches[1]);
         }
         
-        // Extract metadata from list
-        $metadata_pattern = '/- (Plugin Name|Version|Requires at least|Requires PHP|Tested up to|Author|Author URI|License|License URI): (.+)$/m';
-        preg_match_all( $metadata_pattern, $this->markdown_content, $metadata_matches, PREG_SET_ORDER );
-        
-        foreach ( $metadata_matches as $match ) {
-            $key = strtolower( str_replace( ' ', '_', str_replace( 'Plugin Name', 'name', $match[1] ) ) );
-            $value = trim( $match[2] );
-            $this->plugin_data[ $key ] = $value;
+        // Extract version
+        if (preg_match('/- Version:\s*([\d\.]+)/i', $this->markdown_content, $matches)) {
+            $this->metadata['version'] = $this->metadata['stable_tag'] = trim($matches[1]);
         }
         
-        // Add contributor from author
-        if ( ! empty( $this->plugin_data['author'] ) ) {
-            $author_username = $this->get_author_username();
-            $this->plugin_data['contributors'][] = $author_username;
+        // Extract PHP requirement
+        if (preg_match('/- Requires PHP:\s*([\d\.]+)/i', $this->markdown_content, $matches)) {
+            $this->metadata['requires_php'] = trim($matches[1]);
         }
         
-        // Extract description
-        if ( preg_match( '/## Description\s+(.+?)(?=##|\z)/s', $this->markdown_content, $matches ) ) {
-            $description = trim( $matches[1] );
-            $this->plugin_data['description'] = $description;
-            
-            // First paragraph as short description
-            $paragraphs = explode( "\n\n", $description );
-            $this->plugin_data['short_description'] = trim( $paragraphs[0] );
+        // Extract WordPress tested up to
+        if (preg_match('/- Tested up to:\s*([\d\.]+)/i', $this->markdown_content, $matches)) {
+            $this->metadata['tested_up_to'] = trim($matches[1]);
         }
         
-        // Extract sections
-        $section_pattern = '/## ([^\n]+)\s+(.+?)(?=## |\z)/s';
-        preg_match_all( $section_pattern, $this->markdown_content, $section_matches, PREG_SET_ORDER );
-        
-        foreach ( $section_matches as $match ) {
-            $section_name = trim( $match[1] );
-            $section_content = trim( $match[2] );
-            
-            if ( $section_name !== 'Changelog' ) {
-                $this->plugin_data['sections'][ $section_name ] = $section_content;
-            }
+        // Extract author
+        if (preg_match('/- Author:\s*(.*?)$/im', $this->markdown_content, $matches)) {
+            $this->metadata['author'] = trim($matches[1]);
+            // Convert author to contributor slug
+            $this->metadata['contributors'] = $this->create_contributor_slug(trim($matches[1]));
         }
         
-        // Extract changelog
-        if ( preg_match( '/## Changelog\s+(.+?)(?=##|\z)/s', $this->markdown_content, $matches ) ) {
-            $changelog_content = trim( $matches[1] );
-            
-            // Extract individual releases
-            $release_pattern = '/### \[?([0-9.]+)\]?\s*\n(.*?)(?=### \[?[0-9.]+\]?|\z)/s';
-            preg_match_all( $release_pattern, $changelog_content, $release_matches, PREG_SET_ORDER );
-            
-            foreach ( $release_matches as $release ) {
-                $version = trim( $release[1] );
-                $changes_content = trim( $release[2] );
-                
-                // Parse changes by type
-                $changes = $this->parse_changes_by_type($changes_content, $version);
-                
-                $this->plugin_data['changelog'][ $version ] = $changes;
-            }
+        // Extract author URI
+        if (preg_match('/- Author URI:\s*(.*?)$/im', $this->markdown_content, $matches)) {
+            $this->metadata['author_uri'] = trim($matches[1]);
         }
         
-        // Extract tags from the description
-        $this->extract_tags_from_description();
+        // Extract license
+        if (preg_match('/- License:\s*(.*?)$/im', $this->markdown_content, $matches)) {
+            $this->metadata['license'] = trim($matches[1]);
+        }
+        
+        // Extract license URI
+        if (preg_match('/- License URI:\s*(.*?)$/im', $this->markdown_content, $matches)) {
+            $this->metadata['license_uri'] = trim($matches[1]);
+        }
+        
+        // Extract short description
+        if (preg_match('/## Description\s*(.*?)(?=##|\z)/ms', $this->markdown_content, $matches)) {
+            $desc = trim($matches[1]);
+            $desc_lines = explode("\n", $desc);
+            $this->metadata['short_description'] = trim($desc_lines[0]);
+        }
+        
+        // Extract tags - by default use common plugin tags
+        $this->metadata['tags'] = 'plugin';
     }
     
     /**
-     * Parse changes by type (Added, Fixed, Changed, etc)
+     * Build the header section of the readme.txt
+     */
+    private function build_header() {
+        $this->readme_content = "=== {$this->metadata['plugin_name']} ===\n";
+        $this->readme_content .= "Contributors: {$this->metadata['contributors']}\n";
+        $this->readme_content .= "Tags: {$this->metadata['tags']}\n";
+        $this->readme_content .= "Requires at least: {$this->metadata['requires_at_least']}\n";
+        $this->readme_content .= "Requires PHP: {$this->metadata['requires_php']}\n";
+        $this->readme_content .= "Tested up to: {$this->metadata['tested_up_to']}\n";
+        $this->readme_content .= "Stable tag: {$this->metadata['stable_tag']}\n";
+        $this->readme_content .= "License: {$this->metadata['license']}\n";
+        $this->readme_content .= "License URI: {$this->metadata['license_uri']}\n\n";
+        $this->readme_content .= "{$this->metadata['short_description']}\n\n";
+    }
+    
+    /**
+     * Extract different sections from the markdown
      * 
-     * @param string $changes_content Raw changelog content
-     * @param string $version Version number
-     * @return array Organized changes by type
+     * @return array An array of sections
      */
-    private function parse_changes_by_type($changes_content, $version) {
-        $changes = array();
+    private function extract_sections() {
+        $sections = [];
         
-        // Look for change type headers (#### Added, #### Fixed, etc)
-        $type_pattern = '/#### (Added|Changed|Deprecated|Removed|Fixed|Security|Improved)\s*\n(.*?)(?=#### |$)/s';
-        preg_match_all( $type_pattern, $changes_content, $type_matches, PREG_SET_ORDER );
+        // Pattern to match sections (## Heading)
+        preg_match_all('/##\s+(.*?)(?=##|\z)/ms', $this->markdown_content, $matches, PREG_SET_ORDER);
         
-        if (!empty($type_matches)) {
-            // Process structured changes with type headers
-            foreach ($type_matches as $type_match) {
-                $type = trim($type_match[1]);
-                $type_content = trim($type_match[2]);
+        foreach ($matches as $match) {
+            $section_title = trim($match[1]);
+            $section_content = isset($match[2]) ? trim($match[2]) : '';
+            
+            // If no content was matched, extract it manually
+            if (empty($section_content)) {
+                $pos = strpos($this->markdown_content, '## ' . $section_title);
+                $end_pos = strpos($this->markdown_content, '##', $pos + strlen('## ' . $section_title));
                 
-                // Extract bullet points
-                $changes[$type] = $this->extract_bullet_points($type_content);
+                if ($end_pos !== false) {
+                    $section_content = trim(substr(
+                        $this->markdown_content, 
+                        $pos + strlen('## ' . $section_title), 
+                        $end_pos - ($pos + strlen('## ' . $section_title))
+                    ));
+                } else {
+                    // If this is the last section, get everything after the heading
+                    $section_content = trim(substr(
+                        $this->markdown_content, 
+                        $pos + strlen('## ' . $section_title)
+                    ));
+                }
             }
-        } else {
-            // If no structured type headers found, process as general changes
-            $changes['General'] = $this->extract_bullet_points($changes_content);
+            
+            $sections[$section_title] = $section_content;
         }
         
-        return $changes;
+        return $sections;
     }
     
     /**
-     * Extract bullet points from content
+     * Build the sections for the readme.txt
      * 
-     * @param string $content Content with bullet points
-     * @return array Array of bullet points
+     * @param array $sections The sections extracted from markdown
      */
-    private function extract_bullet_points($content) {
-        $bullet_points = array();
-        $lines = explode("\n", $content);
-        
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (preg_match('/^[-*]\s+(.+)$/', $line, $matches)) {
-                $bullet_points[] = trim($matches[1]);
-            }
-        }
-        
-        // If no bullet points found, use the entire content as a single point
-        if (empty($bullet_points) && !empty(trim($content))) {
-            $bullet_points[] = trim($content);
-        }
-        
-        return $bullet_points;
-    }
-    
-    /**
-     * Extract tags from the plugin description
-     */
-    private function extract_tags_from_description() {
-        $this->plugin_data['tags'] = array();
-        
-        // Common WordPress plugin category tags
-        $common_tags = array(
-            'admin', 'plugin', 'widget', 'posts', 'pages', 'comments', 'users', 
-            'media', 'social', 'seo', 'security', 'performance', 'forms', 
-            'analytics', 'ecommerce', 'marketing', 'images', 'video', 'audio',
-            'theme', 'custom', 'content', 'dashboard', 'email', 'api',
-            'shortcode', 'tools', 'widget', 'woocommerce', 'multilingual'
-        );
-        
-        // Extract plugin name and add related words as potential tags
-        $plugin_name_parts = preg_split('/[\s\-_]+/', strtolower($this->plugin_data['name']));
-        $potential_tags = $plugin_name_parts;
-        
-        // Add description words as potential tags
-        $description_words = preg_split('/[\s\-_,.;:!?]+/', strtolower($this->plugin_data['description']));
-        $potential_tags = array_merge($potential_tags, $description_words);
-        
-        // Check for common tags in the potential tags
-        foreach ($common_tags as $tag) {
-            if (in_array($tag, $potential_tags) || 
-                $this->contains_word($this->plugin_data['description'], $tag)) {
-                $this->plugin_data['tags'][] = $tag;
-            }
-        }
-        
-        // Add the most relevant words from the plugin name as tags
-        foreach ($plugin_name_parts as $part) {
-            if (strlen($part) > 3 && !in_array($part, $this->plugin_data['tags'])) {
-                $this->plugin_data['tags'][] = $part;
-            }
-        }
-        
-        // Ensure we have at least some tags
-        if (empty($this->plugin_data['tags'])) {
-            $this->plugin_data['tags'] = array('plugin');
-        }
-        
-        // Limit to 10 tags max
-        $this->plugin_data['tags'] = array_slice($this->plugin_data['tags'], 0, 10);
-    }
-    
-    /**
-     * Check if a string contains a whole word
-     *
-     * @param string $haystack The string to search in
-     * @param string $needle The word to search for
-     * @return bool True if the word is found, false otherwise
-     */
-    private function contains_word($haystack, $needle) {
-        return preg_match('/\b' . preg_quote($needle, '/') . '\b/i', $haystack) === 1;
-    }
-    
-    /**
-     * Extract author username from author URI or name.
-     *
-     * @return string The author username for WordPress.org contributor.
-     */
-    private function get_author_username() {
-        // Extract username from a URL
-        if ( ! empty( $this->plugin_data['author_uri'] ) && 
-             preg_match( '/\/\/(?:github\.com|wordpress\.org|[\w\.-]+)\/([^\/]+)/', $this->plugin_data['author_uri'], $matches ) ) {
-            return $matches[1];
-        }
-        
-        // Clean up author name for use as username
-        $username = strtolower( str_replace( ' ', '', $this->plugin_data['author'] ) );
-        
-        // Remove any special characters
-        return preg_replace('/[^a-z0-9_-]/', '', $username);
-    }
-    
-    /**
-     * Convert markdown to WordPress readme.txt format.
-     *
-     * @return string The formatted readme.txt content.
-     */
-    public function convert_to_readme_txt() {
-        // Start with the header
-        $readme = $this->generate_readme_header();
-        
-        // Add Description section
-        $readme .= "== Description ==\n\n";
-        $readme .= $this->convert_markdown_to_readme( $this->plugin_data['description'] ) . "\n\n";
-        
-        // Add Features section if it exists
-        if ( isset( $this->plugin_data['sections']['Features'] ) ) {
-            $readme .= "== Features ==\n\n";
-            $readme .= $this->convert_markdown_to_readme( $this->plugin_data['sections']['Features'] ) . "\n\n";
-        }
-        
-        // Add Installation section
-        $readme .= $this->generate_installation_section();
-        
-        // Add Usage section if it exists
-        if ( isset( $this->plugin_data['sections']['Usage'] ) ) {
-            $readme .= "== Usage ==\n\n";
-            $readme .= $this->convert_markdown_to_readme( $this->plugin_data['sections']['Usage'] ) . "\n\n";
-        }
-        
-        // Add other sections in a standardized order
-        $standard_sections = array(
-            'Frequently Asked Questions' => 'FAQ',
-            'Screenshots' => 'Screenshots',
-            'Support' => 'Support',
+    private function build_sections($sections) {
+        $standard_sections = [
+            'Description' => 'Description',
+            'Features' => 'Description',
+            'Installation' => 'Installation',
+            'Usage' => 'Usage',
+            'Frequently Asked Questions' => 'Frequently Asked Questions',
+            'FAQ' => 'Frequently Asked Questions',
+            'Changelog' => 'Changelog',
             'License' => 'License',
-            'Upgrade Notice' => 'Upgrade Notice',
-        );
+            'Support' => 'Support'
+        ];
         
-        foreach ( $standard_sections as $md_section => $wp_section ) {
-            if ( isset( $this->plugin_data['sections'][$md_section] ) ) {
-                $readme .= "== {$wp_section} ==\n\n";
-                $readme .= $this->convert_markdown_to_readme( $this->plugin_data['sections'][$md_section] ) . "\n\n";
-            }
-        }
-        
-        // Add any remaining sections not handled above
-        foreach ( $this->plugin_data['sections'] as $section_name => $section_content ) {
-            if ( !in_array($section_name, array('Description', 'Features', 'Installation', 'Usage', 'Changelog')) && 
-                 !isset($standard_sections[$section_name]) ) {
-                $readme .= "== {$section_name} ==\n\n";
-                $readme .= $this->convert_markdown_to_readme( $section_content ) . "\n\n";
-            }
-        }
-        
-        // Add missing recommended sections
-        $readme = $this->add_missing_sections($readme);
-        
-        // Add changelog
-        $readme .= $this->generate_changelog_section();
-        
-        return $readme;
-    }
-
-    /**
-     * Generate the readme.txt header
-     * 
-     * @return string The formatted header section
-     */
-    private function generate_readme_header() {
-        $readme = "=== {$this->plugin_data['name']} ===\n";
-        $readme .= "Contributors: " . implode( ', ', $this->plugin_data['contributors'] ) . "\n";
-        $readme .= "Tags: " . implode( ', ', $this->plugin_data['tags'] ) . "\n";
-        $readme .= "Requires at least: " . ($this->plugin_data['requires'] ?: '6.0') . "\n";
-        $readme .= "Tested up to: " . ($this->plugin_data['tested'] ?: '6.4') . "\n";
-        
-        if ( ! empty( $this->plugin_data['requires_php'] ) ) {
-            $readme .= "Requires PHP: {$this->plugin_data['requires_php']}\n";
-        }
-        
-        $readme .= "Stable tag: {$this->plugin_data['version']}\n";
-        $readme .= "License: {$this->plugin_data['license']}\n";
-        $readme .= "License URI: {$this->plugin_data['license_uri']}\n\n";
-        
-        $readme .= "{$this->plugin_data['short_description']}\n\n";
-        
-        return $readme;
-    }
-
-    /**
-     * Generate the Installation section
-     * 
-     * @return string The formatted Installation section
-     */
-    private function generate_installation_section() {
-        $installation = "== Installation ==\n\n";
-        
-        if ( isset( $this->plugin_data['sections']['Installation'] ) ) {
-            $installation .= $this->convert_markdown_to_readme( $this->plugin_data['sections']['Installation'] ) . "\n\n";
-        } else {
-            // Default generic installation instructions
-            $plugin_slug = strtolower(str_replace(' ', '-', $this->plugin_data['name']));
-            $installation .= "1. Upload the plugin files to the `/wp-content/plugins/{$plugin_slug}` directory, or install the plugin through the WordPress plugins screen directly.\n";
-            $installation .= "2. Activate the plugin through the 'Plugins' screen in WordPress\n";
-            $installation .= "3. Use the Settings screen to configure the plugin (if applicable)\n\n";
-        }
-        
-        return $installation;
-    }
-    
-    /**
-     * Generate the Changelog section
-     * 
-     * @return string The formatted Changelog section
-     */
-    private function generate_changelog_section() {
-        $changelog = "== Changelog ==\n\n";
-        
-        if (empty($this->plugin_data['changelog'])) {
-            $changelog .= "= {$this->plugin_data['version']} =\n";
-            $changelog .= "* Initial release\n\n";
-            return $changelog;
-        }
-        
-        // Sort versions in descending order
-        $versions = array_keys($this->plugin_data['changelog']);
-        usort($versions, 'version_compare');
-        $versions = array_reverse($versions);
-        
-        foreach ($versions as $version) {
-            $changes = $this->plugin_data['changelog'][$version];
-            $changelog .= "= {$version} =\n";
-            
-            if (empty($changes)) {
-                $changelog .= "* Maintenance release\n\n";
-                continue;
-            }
-            
-            foreach ($changes as $type => $type_changes) {
-                if (empty($type_changes)) {
-                    continue;
-                }
+        foreach ($standard_sections as $md_section => $wp_section) {
+            if (isset($sections[$md_section])) {
+                $content = $this->format_section_content($sections[$md_section], $md_section);
                 
-                // Standard WordPress.org readme.txt doesn't use types in changelog
-                // But we'll keep them in a clean format
-                if ($type !== 'General') {
-                    $changelog .= "* {$type}:\n";
-                }
-                
-                foreach ($type_changes as $change) {
-                    if ($type !== 'General') {
-                        $changelog .= "  * {$change}\n";
-                    } else {
-                        $changelog .= "* {$change}\n";
+                // Special case for features - include in description
+                if ($md_section === 'Features' && $wp_section === 'Description') {
+                    if (isset($sections['Description'])) {
+                        // Only add features if not already in description
+                        if (strpos($sections['Description'], $sections['Features']) === false) {
+                            $content = "\n= Features =\n" . $content;
+                        } else {
+                            continue;
+                        }
                     }
                 }
+                
+                $this->readme_content .= "== $wp_section ==\n\n$content\n\n";
             }
+        }
+        
+        // Add Upgrade Notice if not present
+        if (!isset($sections['Upgrade Notice'])) {
+            $this->readme_content .= "== Upgrade Notice ==\n\n";
             
-            $changelog .= "\n";
+            // If we have a changelog, use the latest version for upgrade notice
+            if (isset($sections['Changelog'])) {
+                preg_match('/### \[([\d\.]+)\]/m', $sections['Changelog'], $matches);
+                if (isset($matches[1])) {
+                    $latest_version = $matches[1];
+                    $this->readme_content .= "= $latest_version =\n";
+                    $this->readme_content .= "This update includes the latest improvements and fixes.\n\n";
+                }
+            }
         }
-        
-        return $changelog;
     }
     
     /**
-     * Add missing but recommended sections to the readme.txt file
+     * Format section content based on section type
      * 
-     * @param string $readme Current readme content
-     * @return string Updated readme content with missing sections
+     * @param string $content The section content
+     * @param string $section_type The section type
+     * @return string The formatted content
      */
-    private function add_missing_sections($readme) {
-        // Check for FAQ section
-        if (strpos($readme, "== FAQ ==") === false && strpos($readme, "== Frequently Asked Questions ==") === false) {
-            $faq = "== Frequently Asked Questions ==\n\n";
-            $faq .= "= What does this plugin do? =\n\n";
-            $faq .= "Please see the Description section for details on the plugin's functionality.\n\n";
-            $faq .= "= Does this plugin work with the latest version of WordPress? =\n\n";
-            $faq .= "Yes, this plugin is regularly tested with the latest version of WordPress to ensure compatibility.\n\n";
-            $readme .= $faq;
+    private function format_section_content($content, $section_type) {
+        // Format the content based on section type
+        switch ($section_type) {
+            case 'Changelog':
+                return $this->format_changelog($content);
+                
+            case 'Features':
+                return $this->format_features($content);
+                
+            default:
+                return $this->format_generic_section($content);
         }
-        
-        // Check for Screenshots section
-        if (strpos($readme, "== Screenshots ==") === false) {
-            $screenshots = "== Screenshots ==\n\n";
-            $screenshots .= "1. Plugin admin interface\n";
-            $screenshots .= "2. Frontend display example\n";
-            $readme .= $screenshots;
-        }
-        
-        // Check for Upgrade Notice section
-        if (strpos($readme, "== Upgrade Notice ==") === false) {
-            $upgrade = "== Upgrade Notice ==\n\n";
-            $upgrade .= "= {$this->plugin_data['version']} =\n";
-            $upgrade .= "This version improves compatibility with the latest WordPress release.\n\n";
-            $readme .= $upgrade;
-        }
-        
-        return $readme;
     }
     
     /**
-     * Convert markdown syntax to WordPress readme syntax.
-     *
-     * @param string $content The markdown content.
-     * @return string The converted content.
+     * Format changelog section
+     * 
+     * @param string $content The changelog content
+     * @return string The formatted changelog
      */
-    private function convert_markdown_to_readme($content) {
-        // Convert markdown headers
-        $content = preg_replace('/^####\s+(.+)$/m', '= $1 =', $content);
-        $content = preg_replace('/^###\s+(.+)$/m', '= $1 =', $content);
-        $content = preg_replace('/^##\s+(.+)$/m', '== $1 ==', $content);
-        $content = preg_replace('/^#\s+(.+)$/m', '=== $1 ===', $content);
+    private function format_changelog($content) {
+        $formatted = '';
         
-        // Convert markdown links
-        $content = preg_replace('/\[([^\]]+)\]\(([^)]+)\)/', '$1 ($2)', $content);
+        // Replace ### [x.x.x] with = x.x.x =
+        $content = preg_replace('/### \[([\d\.]+)\]/', '= $1 =', $content);
         
-        // Convert markdown lists
-        $content = preg_replace('/^\s*[\*\-]\s+(.+)$/m', '* $1', $content);
+        // Replace #### Added/Changed/Fixed with * Added/Changed/Fixed
+        $content = preg_replace('/#### (Added|Changed|Fixed|Improved)/', '* $1', $content);
         
-        // Convert numbered lists - keep them as numbers for readme.txt
-        $content = preg_replace('/^\s*\d+\.\s+(.+)$/m', '$0', $content);
+        // Replace - with *
+        $content = preg_replace('/- /', '* ', $content);
         
-        // Convert code blocks
-        $content = preg_replace('/```([a-z]*)\n(.*?)```/s', "<pre><code>$2</code></pre>", $content);
+        // Clean up the content
+        $lines = explode("\n", $content);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (!empty($line)) {
+                $formatted .= "$line\n";
+            }
+        }
         
-        // Convert inline code
-        $content = preg_replace('/`([^`]+)`/', '<code>$1</code>', $content);
-        
-        // Clean up extra whitespace
-        $content = preg_replace('/\n{3,}/', "\n\n", $content);
-        
-        return trim($content);
+        return $formatted;
     }
     
     /**
-     * Check for issues with the README.md file.
-     *
-     * @return array Array of recommended changes.
+     * Format features section
+     * 
+     * @param string $content The features content
+     * @return string The formatted features
+     */
+    private function format_features($content) {
+        // Convert markdown bullet points to WP readme format
+        $content = preg_replace('/- /', '* ', $content);
+        return $content;
+    }
+    
+    /**
+     * Format generic section content
+     * 
+     * @param string $content The section content
+     * @return string The formatted content
+     */
+    private function format_generic_section($content) {
+        // Convert markdown bullet points to WP readme format
+        $content = preg_replace('/- /', '* ', $content);
+        
+        // Convert markdown links [text](url) to WP links
+        $content = preg_replace('/\[(.*?)\]\((.*?)\)/', '$1: $2', $content);
+        
+        return $content;
+    }
+    
+    /**
+     * Create a contributor slug from an author name
+     * 
+     * @param string $author_name The author name
+     * @return string The contributor slug
+     */
+    private function create_contributor_slug($author_name) {
+        // Convert spaces to underscores and make lowercase
+        $slug = strtolower(str_replace(' ', '', $author_name));
+        // Remove any non-alphanumeric characters
+        $slug = preg_replace('/[^a-z0-9_]/', '', $slug);
+        return $slug;
+    }
+    
+    /**
+     * Save the readme.txt content to a file
+     * 
+     * @param string $file_path The file path to save to
+     * @return bool Whether the file was saved successfully
+     */
+    public function save($file_path) {
+        if (empty($this->readme_content)) {
+            $this->convert();
+        }
+        
+        return file_put_contents($file_path, $this->readme_content) !== false;
+    }
+    
+    /**
+     * Save the readme.txt content to a file (alias for save)
+     * 
+     * @param string $file_path The file path to save to
+     * @return bool Whether the file was saved successfully
+     */
+    public function save_readme_txt($file_path) {
+        return $this->save($file_path);
+    }
+    
+    /**
+     * Get recommendations for improving the README.md
+     * 
+     * @return array An array of recommendations
      */
     public function get_recommendations() {
-        $recommendations = array();
+        $recommendations = [];
         
-        if ( empty( $this->plugin_data['requires_php'] ) ) {
-            $recommendations[] = 'Add a "Requires PHP" field to specify the minimum PHP version required.';
+        // Check if metadata is properly defined
+        if (empty($this->metadata['plugin_name'])) {
+            $recommendations[] = 'Add a title (H1) to your README.md file.';
         }
         
-        if ( empty( $this->plugin_data['requires'] ) ) {
-            $recommendations[] = 'Add a "Requires at least" field to specify the minimum WordPress version.';
+        if (empty($this->metadata['version'])) {
+            $recommendations[] = 'Add Version information (e.g., "- Version: 1.0.0").';
         }
         
-        if ( count( $this->plugin_data['tags'] ) < 5 ) {
-            $recommendations[] = 'Add more specific tags to improve discoverability in the WordPress plugin directory.';
+        if (empty($this->metadata['requires_php'])) {
+            $recommendations[] = 'Add PHP requirement (e.g., "- Requires PHP: 7.4").';
         }
         
-        if ( ! isset( $this->plugin_data['sections']['Frequently Asked Questions'] ) ) {
-            $recommendations[] = 'Consider adding a FAQ section to address common user questions.';
+        if (empty($this->metadata['tested_up_to'])) {
+            $recommendations[] = 'Add WordPress compatibility (e.g., "- Tested up to: 6.3").';
         }
         
-        if ( ! isset( $this->plugin_data['sections']['Screenshots'] ) ) {
-            $recommendations[] = 'Add a Screenshots section to show plugin features visually.';
+        // Check for key sections
+        if (!preg_match('/## Description/i', $this->markdown_content)) {
+            $recommendations[] = 'Add a Description section.';
         }
         
-        if ( ! isset( $this->plugin_data['sections']['Upgrade Notice'] ) ) {
-            $recommendations[] = 'Add an Upgrade Notice section for important version upgrades.';
+        if (!preg_match('/## Installation/i', $this->markdown_content)) {
+            $recommendations[] = 'Add an Installation section.';
         }
         
-        if ( strlen( $this->plugin_data['short_description'] ) > 150 ) {
-            $recommendations[] = 'Shorten the short description to under 150 characters for better display in the WordPress plugin directory.';
-        }
-        
-        if (empty($this->plugin_data['changelog'])) {
-            $recommendations[] = 'Add a proper Changelog section to track version changes.';
+        if (!preg_match('/## Changelog/i', $this->markdown_content)) {
+            $recommendations[] = 'Add a Changelog section.';
         }
         
         return $recommendations;
     }
-    
-    /**
-     * Save the converted readme.txt file.
-     *
-     * @param string $output_path Path where to save the readme.txt file.
-     * @return bool True if file was saved successfully, false otherwise.
-     */
-    public function save_readme_txt( $output_path ) {
-        $readme_content = $this->convert_to_readme_txt();
-        return (bool) file_put_contents( $output_path, $readme_content );
-    }
 }
+
+/*
+// Example usage:
+// To run this example, define GITHUB_TO_README_EXAMPLE constant as true
+// Example: define('GITHUB_TO_README_EXAMPLE', true);
+
+if (defined('GITHUB_TO_README_EXAMPLE') && GITHUB_TO_README_EXAMPLE) {
+    // Load README.md file
+    $readme_md = file_get_contents('README.md');
+    
+    // Convert to readme.txt
+    $converter = new GitHub_To_WordPress_Readme_Converter($readme_md);
+    $readme_txt = $converter->convert();
+    
+    // Save to file
+    $converter->save('readme.txt');
+    
+    echo "Conversion complete!";
+}
+*/
