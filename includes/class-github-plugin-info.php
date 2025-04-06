@@ -7,8 +7,7 @@
  * @license   GPL-2.0+
  * @link      https://blueboatsolutions.com
  *
- * This class handles WordPress plugin updates from GitHub repositories
- * and automatically converts README.md to readme.txt for the "View Details" link.
+ * This class handles WordPress plugin updates from GitHub repositories.
  * 
  * Requires: https://github.com/YahnisElsts/plugin-update-checker
  */
@@ -122,8 +121,7 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             // Set up the update checker
             $this->setup_update_checker();
             
-            // Don't handle readme.txt generation directly
-            // This is now delegated to GitHub_Readme_Updater
+            // Set up hooks for plugin updates
             
             // Filter plugin info to ensure proper details
             add_filter("puc_request_info_result-{$this->plugin_slug}", [$this, 'ensure_plugin_info'], 10, 2);
@@ -224,7 +222,7 @@ if (!class_exists('GitHub_Plugin_Updater')) {
          * @return object Modified plugin info object.
          */
         public function ensure_plugin_info($info, $response) {
-            // Note: readme.txt generation is now handled by GitHub_Readme_Updater
+            // Process plugin info
             return $info;
         }
         
@@ -242,7 +240,7 @@ if (!class_exists('GitHub_Plugin_Updater')) {
                 return $result;
             }
             
-            // Note: readme.txt generation is now handled by GitHub_Readme_Updater
+            // Parse readme.txt file if it exists
             
             // Get plugin data
             $plugin_data = get_plugin_data($this->plugin_file);

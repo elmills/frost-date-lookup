@@ -3,7 +3,7 @@
  * Plugin Name: Frost Date Lookup
  * Plugin URI: https://github.com/elmills/frost-date-lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.30
+ * Version: 1.0.31
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
@@ -29,8 +29,6 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-i18n.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-api.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-github-plugin-info.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/class-github-to-wordpress-readme-converter.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/class-github-readme-updater.php';
 
 
 // Activation and deactivation hooks
@@ -52,8 +50,8 @@ run_frost_date_lookup();
 
 // Enqueue scripts and styles
 function frost_date_lookup_enqueue_scripts() {
-    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.30');
-    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.30', true);
+    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.31');
+    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.31', true);
     
     // Localize the script with new data
     wp_localize_script('frost-date-lookup-script', 'frost_date_lookup', array(
@@ -104,32 +102,15 @@ $github_branch = 'main';
 // GitHub access token for private repositories (null for public repos)
 $github_token = null;
 
-// Plugin metadata for readme.txt 
-$plugin_metadata = [
-    'contributors' => 'elmills',
-    // 'donate_link' => 'https://example.com/donate', // Optional - uncomment if needed
-    'tags' => 'frost date, lookup, wordpress, zipcode, garden',
-    'requires_php' => '8.1'
-];
-
-// Paths to required files (change if your structure is different)
-$updater_class_path = 'includes/class-github-plugin-info.php';
-$library_path = 'plugin-update-checker/plugin-update-checker.php';
-
-// Text domain for translations
-$text_domain = 'frost-date-lookup';
-
-// Initialize the GitHub Readme Updater
-// This needs to be after all constants and includes are defined
-$github_updater = new GitHub_Readme_Updater(
-    __FILE__,                // plugin_file
-    $plugin_slug,            // plugin_slug
-    $github_repo_url,        // github_repo_url
-    $github_branch,          // github_branch
-    $github_token,           // github_token
-    $plugin_metadata,        // plugin_metadata
-    $updater_class_path,     // updater_class_path
-    $library_path,           // library_path
-    $text_domain             // text_domain
-);
+// Initialize the GitHub Plugin Updater
+if (file_exists(plugin_dir_path(__FILE__) . 'includes/class-github-plugin-info.php')) {
+    // Create a new updater instance
+    $github_updater = new GitHub_Plugin_Updater(
+        __FILE__,                // plugin_file
+        $plugin_slug,            // plugin_slug
+        $github_repo_url,        // github_repo_url
+        $github_branch,          // github_branch
+        $github_token            // github_token
+    );
+}
 ?>
