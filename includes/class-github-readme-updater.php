@@ -291,8 +291,19 @@ class GitHub_Readme_Updater {
             // Clear update caches
             $this->clear_plugin_update_caches();
 
-            // Generate readme.txt using the new converter
+            // Generate readme.txt using the new converter - force generation and add debug
             $this->force_readme_txt_generation(true);
+            
+            // Log success or failure for debugging
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                $readme_txt_path = plugin_dir_path($this->plugin_file) . 'readme.txt';
+                if (file_exists($readme_txt_path)) {
+                    error_log('readme.txt successfully generated at: ' . $readme_txt_path);
+                    error_log('readme.txt size: ' . filesize($readme_txt_path) . ' bytes');
+                } else {
+                    error_log('readme.txt generation failed or file not found at: ' . $readme_txt_path);
+                }
+            }
 
         } catch (Exception $e) {
             // Log the error and add admin notice
@@ -449,10 +460,14 @@ class GitHub_Readme_Updater {
         $readme_md_path = plugin_dir_path($this->plugin_file) . 'README.md';
         $readme_txt_path = plugin_dir_path($this->plugin_file) . 'readme.txt';
         
-        // Only regenerate if:
-        // 1. README.md exists, AND
-        // 2. readme.txt doesn't exist OR force parameter is true
-        if (file_exists($readme_md_path) && ($force || !file_exists($readme_txt_path))) {
+        // Debug path information
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('README.md path: ' . $readme_md_path . ' (exists: ' . (file_exists($readme_md_path) ? 'yes' : 'no') . ')');
+            error_log('readme.txt path: ' . $readme_txt_path . ' (exists: ' . (file_exists($readme_txt_path) ? 'yes' : 'no') . ')');
+        }
+        
+        // Always regenerate if README.md exists (simplified condition)
+        if (file_exists($readme_md_path)) {
             try {
                 // Initialize the converter
                 $converter = new GitHub_To_WordPress_Readme_Converter($readme_md_path);

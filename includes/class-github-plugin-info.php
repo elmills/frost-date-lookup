@@ -202,7 +202,7 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             // Fallback if function not available
             $plugin_data = [
                 'Name' => 'Frost Date Lookup',
-                'Version' => '1.0.27',
+                'Version' => '1.0.28',
                 'Author' => 'Everette Mills',
                 'AuthorURI' => 'https://blueboatsolutions.com',
                 'Description' => 'A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.'
@@ -269,21 +269,51 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             $info->last_updated = date('Y-m-d');
             $info->sections = [];
             
-            // Add description
-            preg_match('/== Description ==(.*?)(?=== |$)/s', $readme_txt_content, $desc_matches);
-            $info->sections['description'] = isset($desc_matches[1]) ? trim($desc_matches[1]) : '';
+            // Debug the readme content if enabled
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Readme.txt content length: ' . strlen($readme_txt_content));
+                error_log('First 200 chars: ' . substr($readme_txt_content, 0, 200));
+            }
             
-            // Add installation
-            preg_match('/== Installation ==(.*?)(?=== |$)/s', $readme_txt_content, $install_matches);
-            $info->sections['installation'] = isset($install_matches[1]) ? trim($install_matches[1]) : '';
+            // Parse sections using improved regular expressions that handle different format variations
+            $sections = array(
+                'description'  => array('pattern' => '/(?:^|\n)[ \t]*==[ \t]*Description[ \t]*==\s*(.*?)(?=\n[ \t]*==[ \t]*|$)/s'),
+                'installation' => array('pattern' => '/(?:^|\n)[ \t]*==[ \t]*Installation[ \t]*==\s*(.*?)(?=\n[ \t]*==[ \t]*|$)/s'),
+                'faq'          => array('pattern' => '/(?:^|\n)[ \t]*==[ \t]*(?:Frequently Asked Questions|FAQ)[ \t]*==\s*(.*?)(?=\n[ \t]*==[ \t]*|$)/s'),
+                'changelog'    => array('pattern' => '/(?:^|\n)[ \t]*==[ \t]*Changelog[ \t]*==\s*(.*?)(?=\n[ \t]*==[ \t]*|$)/s'),
+                'screenshots'  => array('pattern' => '/(?:^|\n)[ \t]*==[ \t]*Screenshots[ \t]*==\s*(.*?)(?=\n[ \t]*==[ \t]*|$)/s')
+            );
             
-            // Add FAQ
-            preg_match('/== Frequently Asked Questions ==(.*?)(?=== |$)/s', $readme_txt_content, $faq_matches);
-            $info->sections['faq'] = isset($faq_matches[1]) ? trim($faq_matches[1]) : '';
+            // Extract each section
+            foreach ($sections as $section_key => $section_data) {
+                preg_match($section_data['pattern'], $readme_txt_content, $matches);
+                if (!empty($matches[1])) {
+                    $info->sections[$section_key] = trim($matches[1]);
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log("Found $section_key section with " . strlen($info->sections[$section_key]) . " chars");
+                    }
+                } else {
+                    // Section not found in readme
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log("$section_key section not found in readme.txt");
+                    }
+                }
+            }
             
-            // Add changelog
-            preg_match('/== Changelog ==(.*?)(?=== |$)/s', $readme_txt_content, $changelog_matches);
-            $info->sections['changelog'] = isset($changelog_matches[1]) ? trim($changelog_matches[1]) : '';
+            // If description section is empty, use the plugin description as fallback
+            if (empty($info->sections['description'])) {
+                $info->sections['description'] = isset($plugin_data['Description']) ? $plugin_data['Description'] : '';
+            }
+            
+            // If no sections were extracted, provide some defaults
+            if (empty($info->sections)) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log("No sections found in readme.txt - using fallbacks");
+                }
+                $info->sections['description'] = isset($plugin_data['Description']) ? $plugin_data['Description'] : '';
+                $info->sections['installation'] = 'Please see the plugin documentation for installation instructions.';
+                $info->sections['changelog'] = "= {$info->version} =\n* Initial release.";
+            }
             
             // Parse additional metadata
             preg_match('/=== (.*?) ===/', $readme_txt_content, $plugin_name_matches);
