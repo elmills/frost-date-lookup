@@ -6,7 +6,7 @@
  * @version 1.0.25
  */
 
-class GitHub_To_WordPress_Readme_Converter {
+ class GitHub_To_WordPress_Readme_Converter {
     /**
      * The content of the README.md file.
      *
@@ -184,32 +184,58 @@ class GitHub_To_WordPress_Readme_Converter {
      * Extract tags from the plugin description
      */
     private function extract_tags_from_description() {
+        $this->plugin_data['tags'] = array();
+        
+        // Common WordPress plugin category tags
         $common_tags = array(
-            'frost' => true, // Always include "frost" since it's in the plugin name
-            'gardening' => false,
-            'farming' => false,
-            'weather' => false,
-            'planting' => false,
-            'seasonal' => false,
-            'climate' => false,
-            'agriculture' => false,
-            'zipcode' => false,
-            'noaa' => false,
-            'garden' => false,
+            'admin', 'plugin', 'widget', 'posts', 'pages', 'comments', 'users', 
+            'media', 'social', 'seo', 'security', 'performance', 'forms', 
+            'analytics', 'ecommerce', 'marketing', 'images', 'video', 'audio',
+            'theme', 'custom', 'content', 'dashboard', 'email', 'api',
+            'shortcode', 'tools', 'widget', 'woocommerce', 'multilingual'
         );
         
-        $description_lower = strtolower($this->plugin_data['description']);
+        // Extract plugin name and add related words as potential tags
+        $plugin_name_parts = preg_split('/[\s\-_]+/', strtolower($this->plugin_data['name']));
+        $potential_tags = $plugin_name_parts;
         
-        foreach ($common_tags as $tag => $default) {
-            if ($default || strpos($description_lower, $tag) !== false) {
+        // Add description words as potential tags
+        $description_words = preg_split('/[\s\-_,.;:!?]+/', strtolower($this->plugin_data['description']));
+        $potential_tags = array_merge($potential_tags, $description_words);
+        
+        // Check for common tags in the potential tags
+        foreach ($common_tags as $tag) {
+            if (in_array($tag, $potential_tags) || 
+                $this->contains_word($this->plugin_data['description'], $tag)) {
                 $this->plugin_data['tags'][] = $tag;
             }
         }
         
-        // Add some default tags if none were found
-        if (empty($this->plugin_data['tags'])) {
-            $this->plugin_data['tags'] = array('frost', 'planting', 'weather');
+        // Add the most relevant words from the plugin name as tags
+        foreach ($plugin_name_parts as $part) {
+            if (strlen($part) > 3 && !in_array($part, $this->plugin_data['tags'])) {
+                $this->plugin_data['tags'][] = $part;
+            }
         }
+        
+        // Ensure we have at least some tags
+        if (empty($this->plugin_data['tags'])) {
+            $this->plugin_data['tags'] = array('plugin');
+        }
+        
+        // Limit to 10 tags max
+        $this->plugin_data['tags'] = array_slice($this->plugin_data['tags'], 0, 10);
+    }
+    
+    /**
+     * Check if a string contains a whole word
+     *
+     * @param string $haystack The string to search in
+     * @param string $needle The word to search for
+     * @return bool True if the word is found, false otherwise
+     */
+    private function contains_word($haystack, $needle) {
+        return preg_match('/\b' . preg_quote($needle, '/') . '\b/i', $haystack) === 1;
     }
     
     /**
@@ -237,6 +263,68 @@ class GitHub_To_WordPress_Readme_Converter {
      * @return string The formatted readme.txt content.
      */
     public function convert_to_readme_txt() {
+        // Start with the header
+        $readme = $this->generate_readme_header();
+        
+        // Add Description section
+        $readme .= "== Description ==\n\n";
+        $readme .= $this->convert_markdown_to_readme( $this->plugin_data['description'] ) . "\n\n";
+        
+        // Add Features section if it exists
+        if ( isset( $this->plugin_data['sections']['Features'] ) ) {
+            $readme .= "== Features ==\n\n";
+            $readme .= $this->convert_markdown_to_readme( $this->plugin_data['sections']['Features'] ) . "\n\n";
+        }
+        
+        // Add Installation section
+        $readme .= $this->generate_installation_section();
+        
+        // Add Usage section if it exists
+        if ( isset( $this->plugin_data['sections']['Usage'] ) ) {
+            $readme .= "== Usage ==\n\n";
+            $readme .= $this->convert_markdown_to_readme( $this->plugin_data['sections']['Usage'] ) . "\n\n";
+        }
+        
+        // Add other sections in a standardized order
+        $standard_sections = array(
+            'Frequently Asked Questions' => 'FAQ',
+            'Screenshots' => 'Screenshots',
+            'Support' => 'Support',
+            'License' => 'License',
+            'Upgrade Notice' => 'Upgrade Notice',
+        );
+        
+        foreach ( $standard_sections as $md_section => $wp_section ) {
+            if ( isset( $this->plugin_data['sections'][$md_section] ) ) {
+                $readme .= "== {$wp_section} ==\n\n";
+                $readme .= $this->convert_markdown_to_readme( $this->plugin_data['sections'][$md_section] ) . "\n\n";
+            }
+        }
+        
+        // Add any remaining sections not handled above
+        foreach ( $this->plugin_data['sections'] as $section_name => $section_content ) {
+            if ( !in_array($section_name, array('Description', 'Features', 'Installation', 'Usage', 'Changelog')) && 
+                 !isset($standard_sections[$section_name]) ) {
+                $readme .= "== {$section_name} ==\n\n";
+                $readme .= $this->convert_markdown_to_readme( $section_content ) . "\n\n";
+            }
+        }
+        
+        // Add missing recommended sections
+        $readme = $this->add_missing_sections($readme);
+        
+        // Add changelog
+        $readme .= $this->generate_changelog_section();
+        
+        return $readme;
+    }
+
+    /**
+     * Generate the readme.txt header
+     * 
+     * @return string The formatted header section
+     */
+    private function generate_readme_header() {
         $readme = "=== {$this->plugin_data['name']} ===\n";
         $readme .= "Contributors: " . implode( ', ', $this->plugin_data['contributors'] ) . "\n";
         $readme .= "Tags: " . implode( ', ', $this->plugin_data['tags'] ) . "\n";
@@ -253,72 +341,118 @@ class GitHub_To_WordPress_Readme_Converter {
         
         $readme .= "{$this->plugin_data['short_description']}\n\n";
         
-        // Add Description section
-        $readme .= "== Description ==\n\n";
-        $readme .= $this->convert_markdown_to_readme( $this->plugin_data['description'] ) . "\n\n";
+        return $readme;
+    }
+
+    /**
+     * Generate the Installation section
+     * 
+     * @return string The formatted Installation section
+     */
+    private function generate_installation_section() {
+        $installation = "== Installation ==\n\n";
         
-        // Add other sections
-        foreach ( $this->plugin_data['sections'] as $section_name => $section_content ) {
-            if ( $section_name !== 'Description' && $section_name !== 'Changelog' ) {
-                $readme .= "== {$section_name} ==\n\n";
-                $readme .= $this->convert_markdown_to_readme( $section_content ) . "\n\n";
-            }
+        if ( isset( $this->plugin_data['sections']['Installation'] ) ) {
+            $installation .= $this->convert_markdown_to_readme( $this->plugin_data['sections']['Installation'] ) . "\n\n";
+        } else {
+            // Default generic installation instructions
+            $plugin_slug = strtolower(str_replace(' ', '-', $this->plugin_data['name']));
+            $installation .= "1. Upload the plugin files to the `/wp-content/plugins/{$plugin_slug}` directory, or install the plugin through the WordPress plugins screen directly.\n";
+            $installation .= "2. Activate the plugin through the 'Plugins' screen in WordPress\n";
+            $installation .= "3. Use the Settings screen to configure the plugin (if applicable)\n\n";
         }
         
-        // Add missing recommended sections
-        $this->add_missing_sections($readme);
+        return $installation;
+    }
+    
+    /**
+     * Generate the Changelog section
+     * 
+     * @return string The formatted Changelog section
+     */
+    private function generate_changelog_section() {
+        $changelog = "== Changelog ==\n\n";
         
-        // Add changelog
-        $readme .= "== Changelog ==\n\n";
+        if (empty($this->plugin_data['changelog'])) {
+            $changelog .= "= {$this->plugin_data['version']} =\n";
+            $changelog .= "* Initial release\n\n";
+            return $changelog;
+        }
         
-        foreach ( $this->plugin_data['changelog'] as $version => $changes ) {
-            $readme .= "= {$version} =\n";
+        // Sort versions in descending order
+        $versions = array_keys($this->plugin_data['changelog']);
+        usort($versions, 'version_compare');
+        $versions = array_reverse($versions);
+        
+        foreach ($versions as $version) {
+            $changes = $this->plugin_data['changelog'][$version];
+            $changelog .= "= {$version} =\n";
+            
+            if (empty($changes)) {
+                $changelog .= "* Maintenance release\n\n";
+                continue;
+            }
             
             foreach ($changes as $type => $type_changes) {
+                if (empty($type_changes)) {
+                    continue;
+                }
+                
+                // Standard WordPress.org readme.txt doesn't use types in changelog
+                // But we'll keep them in a clean format
                 if ($type !== 'General') {
-                    $readme .= "{$type}:\n";
+                    $changelog .= "* {$type}:\n";
                 }
                 
                 foreach ($type_changes as $change) {
-                    $readme .= "* {$change}\n";
+                    if ($type !== 'General') {
+                        $changelog .= "  * {$change}\n";
+                    } else {
+                        $changelog .= "* {$change}\n";
+                    }
                 }
-                
-                $readme .= "\n";
             }
+            
+            $changelog .= "\n";
         }
         
-        return $readme;
+        return $changelog;
     }
     
     /**
      * Add missing but recommended sections to the readme.txt file
      * 
-     * @param string &$readme Reference to the readme content
+     * @param string $readme Current readme content
+     * @return string Updated readme content with missing sections
      */
-    private function add_missing_sections(&$readme) {
-        // Add FAQ section if not present
-        if (!isset($this->plugin_data['sections']['Frequently Asked Questions'])) {
-            $readme .= "== Frequently Asked Questions ==\n\n";
-            $readme .= "= How accurate is the frost date information? =\n\n";
-            $readme .= "The plugin uses data from NOAA/NWS sources and provides a statistical average based on historical data. While this gives a good indication for planning purposes, actual frost dates can vary due to local microclimate conditions.\n\n";
-            $readme .= "= Can I use this plugin for commercial farming planning? =\n\n";
-            $readme .= "Yes, the plugin can be useful for commercial planning. However, professional farmers may want to supplement this data with local agricultural extension services for critical planting decisions.\n\n";
+    private function add_missing_sections($readme) {
+        // Check for FAQ section
+        if (strpos($readme, "== FAQ ==") === false && strpos($readme, "== Frequently Asked Questions ==") === false) {
+            $faq = "== Frequently Asked Questions ==\n\n";
+            $faq .= "= What does this plugin do? =\n\n";
+            $faq .= "Please see the Description section for details on the plugin's functionality.\n\n";
+            $faq .= "= Does this plugin work with the latest version of WordPress? =\n\n";
+            $faq .= "Yes, this plugin is regularly tested with the latest version of WordPress to ensure compatibility.\n\n";
+            $readme .= $faq;
         }
         
-        // Add Screenshots section if not present
-        if (!isset($this->plugin_data['sections']['Screenshots'])) {
-            $readme .= "== Screenshots ==\n\n";
-            $readme .= "1. Admin settings page for the Frost Date Lookup plugin\n";
-            $readme .= "2. Front-end display of frost date information\n";
-            $readme .= "3. Example of frost date results for a specific zipcode\n\n";
+        // Check for Screenshots section
+        if (strpos($readme, "== Screenshots ==") === false) {
+            $screenshots = "== Screenshots ==\n\n";
+            $screenshots .= "1. Plugin admin interface\n";
+            $screenshots .= "2. Frontend display example\n";
+            $readme .= $screenshots;
         }
         
-        // Add Upgrade Notice section if not present
-        if (!isset($this->plugin_data['sections']['Upgrade Notice'])) {
-            $readme .= "== Upgrade Notice ==\n\n";
-            $readme .= "= {$this->plugin_data['version']} =\n";
-            $readme .= "This version contains important fixes and improvements to the readme.txt generation system. Update recommended for all users.\n\n";
+        // Check for Upgrade Notice section
+        if (strpos($readme, "== Upgrade Notice ==") === false) {
+            $upgrade = "== Upgrade Notice ==\n\n";
+            $upgrade .= "= {$this->plugin_data['version']} =\n";
+            $upgrade .= "This version improves compatibility with the latest WordPress release.\n\n";
+            $readme .= $upgrade;
         }
+        
+        return $readme;
     }
     
     /**
@@ -327,27 +461,32 @@ class GitHub_To_WordPress_Readme_Converter {
      * @param string $content The markdown content.
      * @return string The converted content.
      */
-    private function convert_markdown_to_readme( $content ) {
+    private function convert_markdown_to_readme($content) {
         // Convert markdown headers
-        $content = preg_replace( '/####\s+(.+)/', '= $1 =', $content );
-        $content = preg_replace( '/###\s+(.+)/', '= $1 =', $content );
-        $content = preg_replace( '/##\s+(.+)/', '== $1 ==', $content );
-        $content = preg_replace( '/#\s+(.+)/', '=== $1 ===', $content );
+        $content = preg_replace('/^####\s+(.+)$/m', '= $1 =', $content);
+        $content = preg_replace('/^###\s+(.+)$/m', '= $1 =', $content);
+        $content = preg_replace('/^##\s+(.+)$/m', '== $1 ==', $content);
+        $content = preg_replace('/^#\s+(.+)$/m', '=== $1 ===', $content);
         
         // Convert markdown links
-        $content = preg_replace( '/\[([^\]]+)\]\(([^)]+)\)/', '$1 ($2)', $content );
+        $content = preg_replace('/\[([^\]]+)\]\(([^)]+)\)/', '$1 ($2)', $content);
         
         // Convert markdown lists
-        $content = preg_replace( '/^\s*[\*\-]\s+(.+)$/m', '* $1', $content );
-        $content = preg_replace( '/^\s*\d+\.\s+(.+)$/m', '# $1', $content );
+        $content = preg_replace('/^\s*[\*\-]\s+(.+)$/m', '* $1', $content);
+        
+        // Convert numbered lists - keep them as numbers for readme.txt
+        $content = preg_replace('/^\s*\d+\.\s+(.+)$/m', '$0', $content);
         
         // Convert code blocks
-        $content = preg_replace( '/```([a-z]*)\n(.*?)```/s', "<pre><code>$2</code></pre>", $content );
+        $content = preg_replace('/```([a-z]*)\n(.*?)```/s', "<pre><code>$2</code></pre>", $content);
         
         // Convert inline code
-        $content = preg_replace( '/`([^`]+)`/', '<code>$1</code>', $content );
+        $content = preg_replace('/`([^`]+)`/', '<code>$1</code>', $content);
         
-        return $content;
+        // Clean up extra whitespace
+        $content = preg_replace('/\n{3,}/', "\n\n", $content);
+        
+        return trim($content);
     }
     
     /**
@@ -384,6 +523,10 @@ class GitHub_To_WordPress_Readme_Converter {
         
         if ( strlen( $this->plugin_data['short_description'] ) > 150 ) {
             $recommendations[] = 'Shorten the short description to under 150 characters for better display in the WordPress plugin directory.';
+        }
+        
+        if (empty($this->plugin_data['changelog'])) {
+            $recommendations[] = 'Add a proper Changelog section to track version changes.';
         }
         
         return $recommendations;

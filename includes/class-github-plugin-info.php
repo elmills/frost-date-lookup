@@ -202,7 +202,7 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             // Fallback if function not available
             $plugin_data = [
                 'Name' => 'Frost Date Lookup',
-                'Version' => '1.0.28',
+                'Version' => '1.0.29',
                 'Author' => 'Everette Mills',
                 'AuthorURI' => 'https://blueboatsolutions.com',
                 'Description' => 'A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.'

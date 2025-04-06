@@ -1,7 +1,7 @@
 # Frost Date Lookup Plugin
 
 - Plugin Name: Frost Date Lookup
-- Version: 1.0.28
+- Version: 1.0.29
 - Requires PHP: 8.1
 - Tested up to: 6.4
 - Author: Everette Mills
@@ -33,6 +33,10 @@ The Frost Date Lookup plugin retrieves the average frost-free date based on a pr
 ## Changelog
 
 All notable changes to this project will be documented in this file.
+
+### [1.0.29]
+#### Changed
+- New improved README.MD to Readme.txt
 
 ### [1.0.28]
 #### Changed
@@ -190,6 +194,12 @@ All notable changes to this project will be documented in this file.
 ### [1.0.0]
 #### Added
 - Initial release of the Frost Date Lookup plugin
+
+## Frequently Asked Questions
+
+### How accurate is the frost date information? 
+
+- The plugin uses data from NOAA/NWS sources and provides a statistical average based on historical data. While this gives a good indication for planning purposes, actual frost dates can vary due to local microclimate conditions.
 
 ## License
 This plugin is licensed under the GPLv2 or later. See the LICENSE file for more details.
