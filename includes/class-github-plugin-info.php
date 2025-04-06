@@ -101,7 +101,7 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             
             // Default metadata
             $default_metadata = [
-                'contributors' => 'your_wp_username',
+                'contributors' => 'elmills',
                 'donate_link' => 'https://example.com/donate',
                 'tags' => 'plugin, wordpress',
                 'requires_php' => '7.2',
@@ -407,6 +407,9 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             
             // Add download link pointing to GitHub repo
             $info->download_link = sprintf('%s/archive/refs/heads/%s.zip', $this->repository_url, $this->branch);
+            
+            // Set external flag to prevent "Attempt to assign property 'external' on null" error
+            $info->external = true;
             
             return $info;
         }
