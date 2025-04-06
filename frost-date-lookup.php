@@ -3,7 +3,7 @@
  * Plugin Name: Frost Date Lookup
  * Plugin URI: https://github.com/elmills/frost-date-lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.23
+ * Version: 1.0.24
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
@@ -50,8 +50,8 @@ run_frost_date_lookup();
 
 // Enqueue scripts and styles
 function frost_date_lookup_enqueue_scripts() {
-    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.23');
-    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.23', true);
+    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.24');
+    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.24', true);
     
     // Localize the script with new data
     wp_localize_script('frost-date-lookup-script', 'frost_date_lookup', array(
@@ -81,9 +81,9 @@ function frost_date_lookup_shortcode($atts) {
  */
 
 /**
- * Generic implementation of the GitHub Plugin Updater
+ * GitHub Plugin Updater initialization
  * 
- * Include this code in your main plugin file and customize the variables at the top
+ * This implementation directly connects to GitHub to check for updates
  */
 
 // ====================================================================
@@ -104,10 +104,10 @@ $github_token = null;
 
 // Plugin metadata for readme.txt 
 $plugin_metadata = [
-    'contributors' => 'your_wp_username',
+    'contributors' => 'elmills',
     // 'donate_link' => 'https://example.com/donate', // Optional - uncomment if needed
-    'tags' => 'plugin, wordpress',
-    // 'requires_php' => '7.2' // Optional - will be pulled from README.md if present
+    'tags' => 'frost date, lookup, wordpress, zipcode, garden',
+    'requires_php' => '8.1'
 ];
 
 // Paths to required files (change if your structure is different)
@@ -115,7 +115,7 @@ $updater_class_path = 'includes/class-github-plugin-info.php';
 $library_path = 'plugin-update-checker/plugin-update-checker.php';
 
 // Text domain for translations
-$text_domain = 'plugin-updater';
+$text_domain = 'frost-date-lookup';
 
 // ====================================================================
 // IMPLEMENTATION - No need to edit below this line
@@ -131,30 +131,22 @@ function initialize_github_updater() {
     global $plugin_slug, $github_repo_url, $github_branch, $github_token, 
            $plugin_metadata, $updater_class_path, $library_path, $text_domain;
     
-    // Define plugin file and directory constants if not already defined
-    if (!defined('PLUGIN_FILE')) {
-        define('PLUGIN_FILE', __FILE__);
-    }
-    
-    if (!defined('PLUGIN_DIR')) {
-        define('PLUGIN_DIR', plugin_dir_path(PLUGIN_FILE));
-    }
-    
-    // Check if we're in WP context
     if (!function_exists('get_plugin_data')) {
-        return;
+        require_once(ABSPATH . 'wp-admin/includes/plugin.php');
     }
     
-    // Step 1: Check if the GitHub Plugin Updater class exists
-    $updater_class_full_path = PLUGIN_DIR . $updater_class_path;
+    // Define the plugin file constant - this is critical!
+    $plugin_file = __FILE__;
+    
+    // Check if the GitHub Plugin Updater class exists
+    $updater_class_full_path = plugin_dir_path($plugin_file) . $updater_class_path;
     if (!file_exists($updater_class_full_path)) {
-        // Add admin notice if the class file is missing
-        add_action('admin_notices', function() use ($text_domain) {
+        add_action('admin_notices', function() use ($text_domain, $updater_class_full_path) {
             ?>
             <div class="notice notice-error">
                 <p><?php printf(
                     esc_html__('GitHub Plugin Updater class file is missing! Plugin updates will not work correctly. Please add the file to: %s', $text_domain),
-                    esc_html(PLUGIN_DIR . $GLOBALS['updater_class_path'])
+                    esc_html($updater_class_full_path)
                 ); ?></p>
             </div>
             <?php
@@ -165,11 +157,10 @@ function initialize_github_updater() {
     // Include the GitHub Plugin Updater class
     require_once $updater_class_full_path;
     
-    // Step 2: Check if the Plugin Update Checker library exists
-    $library_full_path = PLUGIN_DIR . $library_path;
+    // Check if the Plugin Update Checker library exists
+    $library_full_path = plugin_dir_path($plugin_file) . $library_path;
     if (!file_exists($library_full_path)) {
-        // Add admin notice if the library is missing
-        add_action('admin_notices', function() use ($text_domain) {
+        add_action('admin_notices', function() use ($text_domain, $library_full_path) {
             ?>
             <div class="notice notice-error">
                 <p>
@@ -177,7 +168,7 @@ function initialize_github_updater() {
                     <a href="https://github.com/YahnisElsts/plugin-update-checker" target="_blank">GitHub</a>
                     <?php printf(
                         esc_html__('and add it to: %s', $text_domain),
-                        esc_html(PLUGIN_DIR . $GLOBALS['library_path'])
+                        esc_html($library_full_path)
                     ); ?>
                 </p>
             </div>
@@ -186,9 +177,8 @@ function initialize_github_updater() {
         return;
     }
     
-    // Step 3: Check for class existence to avoid duplicate initialization
+    // Check for class existence
     if (!class_exists('GitHub_Plugin_Updater')) {
-        // Add admin notice if the class doesn't exist after including the file
         add_action('admin_notices', function() use ($text_domain) {
             ?>
             <div class="notice notice-error">
@@ -199,10 +189,9 @@ function initialize_github_updater() {
         return;
     }
     
-    // Step 4: Check if README.md exists
-    $readme_path = PLUGIN_DIR . 'README.md';
+    // Check if README.md exists
+    $readme_path = plugin_dir_path($plugin_file) . 'README.md';
     if (!file_exists($readme_path)) {
-        // Add admin notice if README.md is missing
         add_action('admin_notices', function() use ($text_domain) {
             ?>
             <div class="notice notice-warning">
@@ -210,13 +199,11 @@ function initialize_github_updater() {
             </div>
             <?php
         });
-        // Continue anyway as the updater will still work
     }
     
-    // Step 5: Initialize the updater with appropriate error handling
     try {
         // Get plugin data for metadata
-        $plugin_data = get_plugin_data(PLUGIN_FILE);
+        $plugin_data = get_plugin_data($plugin_file);
         
         // Merge plugin data with custom metadata
         $combined_metadata = array_merge($plugin_metadata, [
@@ -226,15 +213,25 @@ function initialize_github_updater() {
             'plugin_description' => $plugin_data['Description']
         ]);
         
-        // Create a new updater instance
-        new GitHub_Plugin_Updater(
-            PLUGIN_FILE,             // Main plugin file
-            $plugin_slug,            // Plugin slug
-            $github_repo_url,        // GitHub repository URL
-            $github_branch,          // GitHub branch
-            $github_token,           // GitHub access token
-            $combined_metadata       // Combined metadata
+        // Create a new updater instance with explicit parameters
+        $updater = new GitHub_Plugin_Updater(
+            $plugin_file,
+            $plugin_slug,
+            $github_repo_url,
+            $github_branch,
+            $github_token,
+            $combined_metadata
         );
+        
+        // Force readme.txt generation
+        $updater->convert_readme_to_txt();
+        
+        // Force clear update cache to ensure fresh check
+        delete_site_transient('update_plugins');
+        delete_site_transient('puc_check_count_' . $plugin_slug);
+        delete_site_transient('puc_request_info_' . $plugin_slug);
+        wp_update_plugins();
+        
     } catch (Exception $e) {
         // Log the error and add admin notice
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -251,8 +248,8 @@ function initialize_github_updater() {
     }
 }
 
-// Hook the initialization after all plugins are loaded
-add_action('plugins_loaded', 'initialize_github_updater');
+// Hook the initialization - use a lower priority to ensure all dependencies are loaded
+add_action('plugins_loaded', 'initialize_github_updater', 20);
 
 /**
  * Check for plugin update requirements on activation
