@@ -1,17 +1,12 @@
 #!/bin/bash
 
-# Create a log directory if it doesn't exist
-mkdir -p .logs
-
-# Redirect all output to a log file
-{
-  echo "Pre-commit hook running at $(date)"
-
-  # Original hook logic
-  if git diff --cached --name-only | grep -q "README.md"; then
-    echo "README.md is staged, running python-converter.py..."
-    python .github/scripts/python-converter.py --input README.md --output readme.txt
-    echo "Exit code: $?"
-    git add readme.txt
-  fi
-} >> .logs/pre-commit.log 2>&1
+# Check if README.md is staged
+if git diff --cached --name-only | grep -q "README.md"; then
+  echo "README.md is staged, running python-converter.py..."
+  
+  # Run the conversion script with proper arguments
+  python .github/scripts/python-converter.py --input README.md --output readme.txt
+  
+  # Re-add readme.txt to ensure the changes are included in the commit
+  git add readme.txt
+fi
