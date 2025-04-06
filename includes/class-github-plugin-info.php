@@ -151,8 +151,9 @@ if (!class_exists('GitHub_Plugin_Updater')) {
                 $this->update_checker->getVcsApi()->enableReleaseAssets();
 
                 // Force checking of releases
-                if (method_exists($this->update_checker->getVcsApi(), 'shouldUseReleases')) {
-                    $this->update_checker->getVcsApi()->setReleaseFilterRegex('');
+                // Use setReleaseVersionFilter with a regex that matches any version
+                if (method_exists($this->update_checker->getVcsApi(), 'setReleaseVersionFilter')) {
+                    $this->update_checker->getVcsApi()->setReleaseVersionFilter('/.*/', \YahnisElsts\PluginUpdateChecker\v5p5\Vcs\Api::RELEASE_FILTER_ALL);
                     add_filter('puc_request_info_query_args-' . $this->plugin_slug, function($args) {
                         $args['preferReleasedUpdates'] = true;
                         return $args;
