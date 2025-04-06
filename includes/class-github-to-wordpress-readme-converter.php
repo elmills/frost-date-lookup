@@ -3,7 +3,7 @@
  * GitHub README.md to WordPress readme.txt Converter
  *
  * @package ReadmeConverter
- * @version 1.0.0
+ * @version 1.0.25
  */
 
 class GitHub_To_WordPress_Readme_Converter {
@@ -63,7 +63,7 @@ class GitHub_To_WordPress_Readme_Converter {
         }
         
         // Extract metadata from list
-        $metadata_pattern = '/- (Plugin Name|Version|Requires at least|Tested up to|Author|Author URI|License|License URI): (.+)$/m';
+        $metadata_pattern = '/- (Plugin Name|Version|Requires at least|Requires PHP|Tested up to|Author|Author URI|License|License URI): (.+)$/m';
         preg_match_all( $metadata_pattern, $this->markdown_content, $metadata_matches, PREG_SET_ORDER );
         
         foreach ( $metadata_matches as $match ) {
@@ -106,28 +106,109 @@ class GitHub_To_WordPress_Readme_Converter {
             $changelog_content = trim( $matches[1] );
             
             // Extract individual releases
-            $release_pattern = '/### \[?([^\]]+)\]?\s+(.+?)(?=### |\z)/s';
+            $release_pattern = '/### \[?([0-9.]+)\]?\s*\n(.*?)(?=### \[?[0-9.]+\]?|\z)/s';
             preg_match_all( $release_pattern, $changelog_content, $release_matches, PREG_SET_ORDER );
             
             foreach ( $release_matches as $release ) {
                 $version = trim( $release[1] );
-                $changes = trim( $release[2] );
+                $changes_content = trim( $release[2] );
                 
-                // Convert markdown heading syntax to WordPress readme syntax
-                $changes = preg_replace( '/#### (Added|Changed|Deprecated|Removed|Fixed|Security|Improved)/', '* $1', $changes );
+                // Parse changes by type
+                $changes = $this->parse_changes_by_type($changes_content, $version);
                 
                 $this->plugin_data['changelog'][ $version ] = $changes;
             }
         }
         
-        // Try to extract tags from the description
-        $common_tags = array('gardening', 'farming', 'weather', 'frost', 'planting', 'seasonal', 'climate');
+        // Extract tags from the description
+        $this->extract_tags_from_description();
+    }
+    
+    /**
+     * Parse changes by type (Added, Fixed, Changed, etc)
+     * 
+     * @param string $changes_content Raw changelog content
+     * @param string $version Version number
+     * @return array Organized changes by type
+     */
+    private function parse_changes_by_type($changes_content, $version) {
+        $changes = array();
+        
+        // Look for change type headers (#### Added, #### Fixed, etc)
+        $type_pattern = '/#### (Added|Changed|Deprecated|Removed|Fixed|Security|Improved)\s*\n(.*?)(?=#### |$)/s';
+        preg_match_all( $type_pattern, $changes_content, $type_matches, PREG_SET_ORDER );
+        
+        if (!empty($type_matches)) {
+            // Process structured changes with type headers
+            foreach ($type_matches as $type_match) {
+                $type = trim($type_match[1]);
+                $type_content = trim($type_match[2]);
+                
+                // Extract bullet points
+                $changes[$type] = $this->extract_bullet_points($type_content);
+            }
+        } else {
+            // If no structured type headers found, process as general changes
+            $changes['General'] = $this->extract_bullet_points($changes_content);
+        }
+        
+        return $changes;
+    }
+    
+    /**
+     * Extract bullet points from content
+     * 
+     * @param string $content Content with bullet points
+     * @return array Array of bullet points
+     */
+    private function extract_bullet_points($content) {
+        $bullet_points = array();
+        $lines = explode("\n", $content);
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (preg_match('/^[-*]\s+(.+)$/', $line, $matches)) {
+                $bullet_points[] = trim($matches[1]);
+            }
+        }
+        
+        // If no bullet points found, use the entire content as a single point
+        if (empty($bullet_points) && !empty(trim($content))) {
+            $bullet_points[] = trim($content);
+        }
+        
+        return $bullet_points;
+    }
+    
+    /**
+     * Extract tags from the plugin description
+     */
+    private function extract_tags_from_description() {
+        $common_tags = array(
+            'frost' => true, // Always include "frost" since it's in the plugin name
+            'gardening' => false,
+            'farming' => false,
+            'weather' => false,
+            'planting' => false,
+            'seasonal' => false,
+            'climate' => false,
+            'agriculture' => false,
+            'zipcode' => false,
+            'noaa' => false,
+            'garden' => false,
+        );
+        
         $description_lower = strtolower($this->plugin_data['description']);
         
-        foreach ($common_tags as $tag) {
-            if (strpos($description_lower, $tag) !== false) {
+        foreach ($common_tags as $tag => $default) {
+            if ($default || strpos($description_lower, $tag) !== false) {
                 $this->plugin_data['tags'][] = $tag;
             }
+        }
+        
+        // Add some default tags if none were found
+        if (empty($this->plugin_data['tags'])) {
+            $this->plugin_data['tags'] = array('frost', 'planting', 'weather');
         }
     }
     
@@ -144,7 +225,10 @@ class GitHub_To_WordPress_Readme_Converter {
         }
         
         // Clean up author name for use as username
-        return strtolower( str_replace( ' ', '', $this->plugin_data['author'] ) );
+        $username = strtolower( str_replace( ' ', '', $this->plugin_data['author'] ) );
+        
+        // Remove any special characters
+        return preg_replace('/[^a-z0-9_-]/', '', $username);
     }
     
     /**
@@ -156,8 +240,8 @@ class GitHub_To_WordPress_Readme_Converter {
         $readme = "=== {$this->plugin_data['name']} ===\n";
         $readme .= "Contributors: " . implode( ', ', $this->plugin_data['contributors'] ) . "\n";
         $readme .= "Tags: " . implode( ', ', $this->plugin_data['tags'] ) . "\n";
-        $readme .= "Requires at least: {$this->plugin_data['requires']}\n";
-        $readme .= "Tested up to: {$this->plugin_data['tested']}\n";
+        $readme .= "Requires at least: " . ($this->plugin_data['requires'] ?: '6.0') . "\n";
+        $readme .= "Tested up to: " . ($this->plugin_data['tested'] ?: '6.4') . "\n";
         
         if ( ! empty( $this->plugin_data['requires_php'] ) ) {
             $readme .= "Requires PHP: {$this->plugin_data['requires_php']}\n";
@@ -175,21 +259,66 @@ class GitHub_To_WordPress_Readme_Converter {
         
         // Add other sections
         foreach ( $this->plugin_data['sections'] as $section_name => $section_content ) {
-            if ( $section_name !== 'Description' ) {
+            if ( $section_name !== 'Description' && $section_name !== 'Changelog' ) {
                 $readme .= "== {$section_name} ==\n\n";
                 $readme .= $this->convert_markdown_to_readme( $section_content ) . "\n\n";
             }
         }
+        
+        // Add missing recommended sections
+        $this->add_missing_sections($readme);
         
         // Add changelog
         $readme .= "== Changelog ==\n\n";
         
         foreach ( $this->plugin_data['changelog'] as $version => $changes ) {
             $readme .= "= {$version} =\n";
-            $readme .= $this->convert_markdown_to_readme( $changes ) . "\n\n";
+            
+            foreach ($changes as $type => $type_changes) {
+                if ($type !== 'General') {
+                    $readme .= "{$type}:\n";
+                }
+                
+                foreach ($type_changes as $change) {
+                    $readme .= "* {$change}\n";
+                }
+                
+                $readme .= "\n";
+            }
         }
         
         return $readme;
+    }
+    
+    /**
+     * Add missing but recommended sections to the readme.txt file
+     * 
+     * @param string &$readme Reference to the readme content
+     */
+    private function add_missing_sections(&$readme) {
+        // Add FAQ section if not present
+        if (!isset($this->plugin_data['sections']['Frequently Asked Questions'])) {
+            $readme .= "== Frequently Asked Questions ==\n\n";
+            $readme .= "= How accurate is the frost date information? =\n\n";
+            $readme .= "The plugin uses data from NOAA/NWS sources and provides a statistical average based on historical data. While this gives a good indication for planning purposes, actual frost dates can vary due to local microclimate conditions.\n\n";
+            $readme .= "= Can I use this plugin for commercial farming planning? =\n\n";
+            $readme .= "Yes, the plugin can be useful for commercial planning. However, professional farmers may want to supplement this data with local agricultural extension services for critical planting decisions.\n\n";
+        }
+        
+        // Add Screenshots section if not present
+        if (!isset($this->plugin_data['sections']['Screenshots'])) {
+            $readme .= "== Screenshots ==\n\n";
+            $readme .= "1. Admin settings page for the Frost Date Lookup plugin\n";
+            $readme .= "2. Front-end display of frost date information\n";
+            $readme .= "3. Example of frost date results for a specific zipcode\n\n";
+        }
+        
+        // Add Upgrade Notice section if not present
+        if (!isset($this->plugin_data['sections']['Upgrade Notice'])) {
+            $readme .= "== Upgrade Notice ==\n\n";
+            $readme .= "= {$this->plugin_data['version']} =\n";
+            $readme .= "This version contains important fixes and improvements to the readme.txt generation system. Update recommended for all users.\n\n";
+        }
     }
     
     /**
@@ -199,16 +328,16 @@ class GitHub_To_WordPress_Readme_Converter {
      * @return string The converted content.
      */
     private function convert_markdown_to_readme( $content ) {
-        // Convert markdown headings to readme headings
+        // Convert markdown headers
         $content = preg_replace( '/####\s+(.+)/', '= $1 =', $content );
         $content = preg_replace( '/###\s+(.+)/', '= $1 =', $content );
         $content = preg_replace( '/##\s+(.+)/', '== $1 ==', $content );
         $content = preg_replace( '/#\s+(.+)/', '=== $1 ===', $content );
         
-        // Convert markdown links to readme links
+        // Convert markdown links
         $content = preg_replace( '/\[([^\]]+)\]\(([^)]+)\)/', '$1 ($2)', $content );
         
-        // Convert markdown lists to readme lists
+        // Convert markdown lists
         $content = preg_replace( '/^\s*[\*\-]\s+(.+)$/m', '* $1', $content );
         $content = preg_replace( '/^\s*\d+\.\s+(.+)$/m', '# $1', $content );
         
@@ -233,7 +362,11 @@ class GitHub_To_WordPress_Readme_Converter {
             $recommendations[] = 'Add a "Requires PHP" field to specify the minimum PHP version required.';
         }
         
-        if ( empty( $this->plugin_data['tags'] ) || count( $this->plugin_data['tags'] ) < 3 ) {
+        if ( empty( $this->plugin_data['requires'] ) ) {
+            $recommendations[] = 'Add a "Requires at least" field to specify the minimum WordPress version.';
+        }
+        
+        if ( count( $this->plugin_data['tags'] ) < 5 ) {
             $recommendations[] = 'Add more specific tags to improve discoverability in the WordPress plugin directory.';
         }
         

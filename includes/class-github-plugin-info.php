@@ -122,11 +122,8 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             // Set up the update checker
             $this->setup_update_checker();
             
-            // Register activation hook to generate readme.txt
-            register_activation_hook($this->plugin_file, [$this, 'convert_readme_to_txt']);
-            
-            // Register hook to update readme.txt when admin visits plugins page
-            add_action('admin_init', [$this, 'maybe_update_readme']);
+            // Don't handle readme.txt generation directly
+            // This is now delegated to GitHub_Readme_Updater
             
             // Filter plugin info to ensure proper details
             add_filter("puc_request_info_result-{$this->plugin_slug}", [$this, 'ensure_plugin_info'], 10, 2);
@@ -192,162 +189,32 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             <?php
         }
 
-        /**
-         * Convert README.md to readme.txt in WordPress standard format.
-         *
-         * @return bool True on success, false on failure.
-         */
-        public function convert_readme_to_txt() {
-            $readme_md_path = plugin_dir_path($this->plugin_file) . 'README.md';
-            $readme_txt_path = plugin_dir_path($this->plugin_file) . 'readme.txt';
-            
-            if (!file_exists($readme_md_path)) {
-                return false;
-            }
-            
-            $md_content = file_get_contents($readme_md_path);
-            $txt_content = '';
-            
-            // Get plugin data from the plugin file header
-            if (function_exists('get_plugin_data')) {
-                $plugin_data = get_plugin_data($this->plugin_file);
-            } else {
-                // Fallback if function not available
-                $plugin_data = [
-                    'Name' => 'Frost Date Lookup',
-                    'Version' => '1.0.26',
-                    'Author' => 'Everette Mills',
-                    'AuthorURI' => 'https://blueboatsolutions.com',
-                    'Description' => 'A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.'
-                ];
-            }
-            
-            // Extract plugin name with fallbacks
-            preg_match('/^#\s+(.*?)$/m', $md_content, $plugin_name_matches);
-            $plugin_name = isset($plugin_name_matches[1]) ? trim($plugin_name_matches[1]) : $plugin_data['Name'];
-            
-            // Start building the readme.txt format
-            $txt_content .= "=== $plugin_name ===\n";
-            
-            // Add contributor metadata
-            $txt_content .= "Contributors: {$this->metadata['contributors']}\n";
-            
-            // Add donate link only if provided
-            if (isset($this->metadata['donate_link']) && !empty($this->metadata['donate_link'])) {
-                $txt_content .= "Donate link: {$this->metadata['donate_link']}\n";
-            }
-            
-            // Get author information - ensure all HTML is properly stripped
-            $author_name = !empty($plugin_data['Author']) ? strip_tags($plugin_data['Author']) : 'Everette Mills';
-            $author_url = !empty($plugin_data['AuthorURI']) ? $plugin_data['AuthorURI'] : 'https://blueboatsolutions.com';
-            
-            $txt_content .= "Tags: {$this->metadata['tags']}\n";
-            
-            // Extract requires at least
-            preg_match('/^## Requires at least\s*\n(.*?)$/m', $md_content, $requires_matches);
-            $requires = isset($requires_matches[1]) ? trim($requires_matches[1]) : '5.0';
-            $txt_content .= "Requires at least: $requires\n";
-            
-            // Extract tested up to
-            preg_match('/^## Tested up to\s*\n(.*?)$/m', $md_content, $tested_matches);
-            $tested = isset($tested_matches[1]) ? trim($tested_matches[1]) : '';
-            if (empty($tested)) {
-                $tested = function_exists('get_bloginfo') ? get_bloginfo('version') : '6.4'; // Fallback value
-            }
-            $txt_content .= "Tested up to: $tested\n";
-            
-            // Set stable tag from plugin version
-            $version = !empty($plugin_data['Version']) ? $plugin_data['Version'] : '1.0.26';
-            
-            // Fallback: Try to extract version from changelog if still empty
-            if (empty($version)) {
-                preg_match('/^### ([\d\.]+)/m', $md_content, $version_matches);
-                $version = isset($version_matches[1]) ? $version_matches[1] : '1.0.0';
-            }
-            
-            $txt_content .= "Stable tag: $version\n";
-            
-            // Extract requires PHP
-            preg_match('/^## Requires PHP\s*\n(.*?)$/m', $md_content, $requires_php_matches);
-            $requires_php = isset($requires_php_matches[1]) ? trim($requires_php_matches[1]) : 
-                           (isset($this->metadata['requires_php']) ? $this->metadata['requires_php'] : '7.0');
-            $txt_content .= "Requires PHP: $requires_php\n";
-            
-            // License information
-            $txt_content .= "License: {$this->metadata['license']}\n";
-            $txt_content .= "License URI: {$this->metadata['license_uri']}\n\n";
-            
-            // Extract short description and clean up formatting
-            preg_match('/^#.*?\n(.*?)(?=^##|\z)/ms', $md_content, $short_desc_matches);
-            $short_desc = isset($short_desc_matches[1]) ? trim($short_desc_matches[1]) : '';
-            
-            // Fix bullet points, making sure they're properly formatted
-            $short_desc = preg_replace('/^- (.*?)$/m', '$1', $short_desc);
-            $txt_content .= $short_desc . "\n\n";
-            
-            // Extract description
-            preg_match('/^## Description\s*\n(.*?)(?=^##|\z)/ms', $md_content, $desc_matches);
-            $description = isset($desc_matches[1]) ? trim($desc_matches[1]) : '';
-            // Fix bullet points in description
-            $description = preg_replace('/^- (.*?)$/m', '* $1', $description);
-            $txt_content .= "== Description ==\n\n" . $description . "\n\n";
-            
-            // Extract installation
-            preg_match('/^## Installation\s*\n(.*?)(?=^##|\z)/ms', $md_content, $install_matches);
-            $installation = isset($install_matches[1]) ? trim($install_matches[1]) : '';
-            // Fix bullet points in installation
-            $installation = preg_replace('/^- (.*?)$/m', '* $1', $installation);
-            $txt_content .= "== Installation ==\n\n" . $installation . "\n\n";
-            
-            // Extract usage as FAQ
-            preg_match('/^## Usage\s*\n(.*?)(?=^##|\z)/ms', $md_content, $usage_matches);
-            $usage = isset($usage_matches[1]) ? trim($usage_matches[1]) : '';
-            if (!empty($usage)) {
-                // Fix bullet points in usage/FAQ
-                $usage = preg_replace('/^- (.*?)$/m', '* $1', $usage);
-                $txt_content .= "== Frequently Asked Questions ==\n\n";
-                $txt_content .= "= How do I use this plugin? =\n\n" . $usage . "\n\n";
-            }
-            
-            // Extract changelog with proper formatting
-            $txt_content .= "== Changelog ==\n\n";
-            
-            // Try to find and extract the changelog section
-            preg_match('/^## Changelog\s*\n(.*?)(?=^##|\z)/ms', $md_content, $changelog_matches);
-            
-            if (isset($changelog_matches[1]) && !empty(trim($changelog_matches[1]))) {
-                $changelog = trim($changelog_matches[1]);
-                
-                // Format version headers and entries properly
-                $changelog = preg_replace('/^### ([\d\.]+)$/m', "= $1 =", $changelog);
-                $changelog = preg_replace('/^- (.*?)$/m', "* $1", $changelog);
-                
-                $txt_content .= $changelog;
-            } else {
-                // If no changelog found, create one based on current version
-                $txt_content .= "= $version =\n* Initial release or version update\n\n";
-            }
-            
-            // Write to readme.txt - ensure we have write permissions
-            $write_result = file_put_contents($readme_txt_path, $txt_content);
-            
-            // Return success or failure
-            return ($write_result !== false);
+    /**
+     * Get plugin information for update process.
+     * 
+     * @return array Plugin information for update process
+     */
+    public function get_plugin_info() {
+        // Get plugin data from the plugin file header
+        if (function_exists('get_plugin_data')) {
+            $plugin_data = get_plugin_data($this->plugin_file);
+        } else {
+            // Fallback if function not available
+            $plugin_data = [
+                'Name' => 'Frost Date Lookup',
+                'Version' => '1.0.27',
+                'Author' => 'Everette Mills',
+                'AuthorURI' => 'https://blueboatsolutions.com',
+                'Description' => 'A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.'
+            ];
         }
-
-        /**
-         * Check if we need to update the readme.txt file.
-         * 
-         * Runs when admin visits plugins page.
-         */
-        public function maybe_update_readme() {
-            if (is_admin() && (
-                (isset($_GET['page']) && $_GET['page'] == 'plugins') || 
-                (isset($_SERVER['SCRIPT_NAME']) && strpos($_SERVER['SCRIPT_NAME'], 'plugins.php') !== false)
-            )) {
-                $this->convert_readme_to_txt();
-            }
-        }
+        
+        return array_merge($plugin_data, [
+            'plugin_slug' => $this->plugin_slug,
+            'repository_url' => $this->repository_url,
+            'branch' => $this->branch
+        ]);
+    }
 
         /**
          * Ensure plugin info is properly set in the "View Details" dialog.
@@ -357,9 +224,7 @@ if (!class_exists('GitHub_Plugin_Updater')) {
          * @return object Modified plugin info object.
          */
         public function ensure_plugin_info($info, $response) {
-            // Ensure readme.txt is up to date
-            $this->convert_readme_to_txt();
-            
+            // Note: readme.txt generation is now handled by GitHub_Readme_Updater
             return $info;
         }
         
@@ -377,8 +242,7 @@ if (!class_exists('GitHub_Plugin_Updater')) {
                 return $result;
             }
             
-            // Ensure readme.txt is up-to-date
-            $this->convert_readme_to_txt();
+            // Note: readme.txt generation is now handled by GitHub_Readme_Updater
             
             // Get plugin data
             $plugin_data = get_plugin_data($this->plugin_file);
