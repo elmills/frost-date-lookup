@@ -3,7 +3,7 @@
  * Plugin Name: Frost Date Lookup
  * Plugin URI: https://github.com/elmills/frost-date-lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.25
+ * Version: 1.0.26
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
@@ -29,6 +29,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-i18n.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-frost-date-api.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/class-github-plugin-info.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/class-github-to-wordpress-readme-converter.php';
 
 
 // Activation and deactivation hooks
@@ -50,8 +51,8 @@ run_frost_date_lookup();
 
 // Enqueue scripts and styles
 function frost_date_lookup_enqueue_scripts() {
-    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.25');
-    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.25', true);
+    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.26');
+    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.26', true);
     
     // Localize the script with new data
     wp_localize_script('frost-date-lookup-script', 'frost_date_lookup', array(
@@ -223,14 +224,14 @@ function initialize_github_updater() {
             $combined_metadata
         );
         
-        // Force readme.txt generation
-        $updater->convert_readme_to_txt();
-        
         // Force clear update cache to ensure fresh check
         delete_site_transient('update_plugins');
         delete_site_transient('puc_check_count_' . $plugin_slug);
         delete_site_transient('puc_request_info_' . $plugin_slug);
         wp_update_plugins();
+        
+        // Generate readme.txt using the new converter
+        force_readme_txt_generation(true);
         
     } catch (Exception $e) {
         // Log the error and add admin notice
@@ -363,22 +364,21 @@ function display_update_debug_info() {
     
     // Force readme.txt generation
     if (file_exists($readme_md_path)) {
-        // Create an instance to convert README.md to readme.txt
-        require_once plugin_dir_path(__FILE__) . 'includes/class-github-plugin-info.php';
-        $updater = new GitHub_Plugin_Updater(
-            __FILE__,
-            $plugin_slug,
-            $github_repo_url,
-            $github_branch,
-            null,
-            []
-        );
-        
-        // Manually trigger the conversion
-        $updater->convert_readme_to_txt();
-        
-        // Refresh status
-        $readme_txt_exists = file_exists($readme_txt_path);
+        // Use the new converter class
+        try {
+            // Initialize the converter
+            $converter = new GitHub_To_WordPress_Readme_Converter($readme_md_path);
+            
+            // Convert and save the readme.txt file
+            $converter->save_readme_txt($readme_txt_path);
+            
+            // Refresh status
+            $readme_txt_exists = file_exists($readme_txt_path);
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('README.md to readme.txt conversion error: ' . $e->getMessage());
+            }
+        }
     }
     
     // Get readme.txt content for debugging
@@ -446,30 +446,28 @@ function force_readme_txt_generation($force = false) {
     // 1. README.md exists, AND
     // 2. readme.txt doesn't exist OR force parameter is true
     if (file_exists($readme_md_path) && ($force || !file_exists($readme_txt_path))) {
-        global $plugin_slug, $github_repo_url, $github_branch;
-        
-        // Create an instance to convert README.md to readme.txt
-        require_once plugin_dir_path(__FILE__) . 'includes/class-github-plugin-info.php';
-        $updater = new GitHub_Plugin_Updater(
-            __FILE__,
-            $plugin_slug,
-            $github_repo_url,
-            $github_branch,
-            null,
-            []
-        );
-        
-        // Manually trigger the conversion
-        $updater->convert_readme_to_txt();
-        
-        // Set transient to prevent frequent regeneration
-        set_transient('readme_txt_generated', true, HOUR_IN_SECONDS);
-        
-        // Only clear update cache if we actually generated a new file
-        if (file_exists($readme_txt_path)) {
-            delete_site_transient('update_plugins');
-            delete_site_transient('puc_check_count_' . $plugin_slug);
-            delete_site_transient('puc_request_info_' . $plugin_slug);
+        try {
+            // Initialize the converter
+            $converter = new GitHub_To_WordPress_Readme_Converter($readme_md_path);
+            
+            // Convert and save the readme.txt file
+            if ($converter->save_readme_txt($readme_txt_path)) {
+                // Set transient to prevent frequent regeneration
+                set_transient('readme_txt_generated', true, HOUR_IN_SECONDS);
+                
+                // Only clear update cache if we actually generated a new file
+                if (file_exists($readme_txt_path)) {
+                    global $plugin_slug;
+                    delete_site_transient('update_plugins');
+                    delete_site_transient('puc_check_count_' . $plugin_slug);
+                    delete_site_transient('puc_request_info_' . $plugin_slug);
+                }
+            }
+        } catch (Exception $e) {
+            // Log the error
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('README.md to readme.txt conversion error: ' . $e->getMessage());
+            }
         }
     }
 }
