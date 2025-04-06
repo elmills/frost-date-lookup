@@ -3,7 +3,7 @@
  * Plugin Name: Frost Date Lookup
  * Plugin URI: https://github.com/elmills/frost-date-lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.21
+ * Version: 1.0.22
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
@@ -50,8 +50,8 @@ run_frost_date_lookup();
 
 // Enqueue scripts and styles
 function frost_date_lookup_enqueue_scripts() {
-    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.21');
-    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.21', true);
+    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.22');
+    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.22', true);
     
     // Localize the script with new data
     wp_localize_script('frost-date-lookup-script', 'frost_date_lookup', array(
@@ -410,19 +410,25 @@ function display_update_debug_info() {
 }
 
 /**
- * Generate readme.txt on plugin activation and admin page loads
+ * Generate readme.txt for plugin updates
+ * 
+ * This function generates the readme.txt file from README.md, but includes
+ * performance optimizations to prevent excessive regeneration.
  */
-function force_readme_txt_generation() {
-    // Run on admin pages and during AJAX calls
-    if (!is_admin() && !wp_doing_ajax()) {
+function force_readme_txt_generation($force = false) {
+    // Check if we've recently generated the file (within last hour)
+    // Skip this check if force = true
+    if (!$force && get_transient('readme_txt_generated')) {
         return;
     }
     
-    // Check if readme.txt exists
-    $readme_txt_path = plugin_dir_path(__FILE__) . 'readme.txt';
     $readme_md_path = plugin_dir_path(__FILE__) . 'README.md';
+    $readme_txt_path = plugin_dir_path(__FILE__) . 'readme.txt';
     
-    if (!file_exists($readme_txt_path) && file_exists($readme_md_path)) {
+    // Only regenerate if:
+    // 1. README.md exists, AND
+    // 2. readme.txt doesn't exist OR force parameter is true
+    if (file_exists($readme_md_path) && ($force || !file_exists($readme_txt_path))) {
         global $plugin_slug, $github_repo_url, $github_branch;
         
         // Create an instance to convert README.md to readme.txt
@@ -438,10 +444,37 @@ function force_readme_txt_generation() {
         
         // Manually trigger the conversion
         $updater->convert_readme_to_txt();
+        
+        // Set transient to prevent frequent regeneration
+        set_transient('readme_txt_generated', true, HOUR_IN_SECONDS);
+        
+        // Only clear update cache if we actually generated a new file
+        if (file_exists($readme_txt_path)) {
+            delete_site_transient('update_plugins');
+            delete_site_transient('puc_check_count_' . $plugin_slug);
+            delete_site_transient('puc_request_info_' . $plugin_slug);
+        }
     }
 }
-// Run on admin page loads and explicitly during plugin information API requests
-add_action('admin_init', 'force_readme_txt_generation');
-add_action('plugins_api', 'force_readme_txt_generation', 1); // Run before plugins_api is processed
-add_action('after_plugin_row', 'force_readme_txt_generation'); // Run when plugins list is displayed
+
+// Run specifically during plugin information API requests (when WP checks for updates)
+add_action('plugins_api', function($result, $action, $args) {
+    // Only run for our plugin
+    if ($action === 'plugin_information' && isset($args->slug) && $args->slug === $GLOBALS['plugin_slug']) {
+        force_readme_txt_generation(true); // Force regeneration during plugin info requests
+    }
+    return $result;
+}, 1, 3);
+
+// When viewing plugins list, check readme.txt but don't force regeneration
+add_action('after_plugin_row', function($plugin_file, $plugin_data) {
+    if (plugin_basename(__FILE__) === $plugin_file) {
+        force_readme_txt_generation(false);
+    }
+}, 10, 2);
+
+// Add hook to WP update check process
+add_action('update_option_update_plugins', function() {
+    force_readme_txt_generation(true);
+});
 ?>

@@ -1,13 +1,13 @@
 # Frost Date Lookup Plugin
 
-Plugin Name: Frost Date Lookup
-Version: 1.0.21
-Requires at least: 6.0
-Tested up to: 6.4
-Author: Everette Mills
-Author URI: https://blueboatsolutions.com
-License: GPL-2.0+
-License URI: http://www.gnu.org/licenses/gpl-2.0.txt
+- Plugin Name: Frost Date Lookup
+- Version: 1.0.22
+- Requires at least: 6.0
+- Tested up to: 6.4
+- Author: Everette Mills
+- Author URI: https://blueboatsolutions.com
+- License: GPL-2.0+
+- License URI: http://www.gnu.org/licenses/gpl-2.0.txt
 
 
 ## Description
@@ -33,6 +33,14 @@ The Frost Date Lookup plugin retrieves the average frost-free date based on a pr
 ## Changelog
 
 All notable changes to this project will be documented in this file.
+
+### [1.0.22]
+
+#### Improved
+- Optimized readme.txt generation with performance improvements
+- Implemented intelligent caching to prevent redundant file generation
+- Added targeted update checks during critical WordPress operations
+- Enhanced version detection reliability in the WordPress update system
 
 ### [1.0.21]
 
