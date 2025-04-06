@@ -1,8 +1,9 @@
 <?php
 /**
  * Plugin Name: Frost Date Lookup
+ * Plugin URI: https://github.com/elmills/frost-date-lookup
  * Description: A plugin to retrieve average frost-free dates based on zip code using NOAA/NWS data.
- * Version: 1.0.19
+ * Version: 1.0.20
  * Author: Everette Mills
  * Author URI: https://blueboatsolutions.com
  * License: GPL2
@@ -49,8 +50,8 @@ run_frost_date_lookup();
 
 // Enqueue scripts and styles
 function frost_date_lookup_enqueue_scripts() {
-    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.19');
-    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.19', true);
+    wp_enqueue_style('frost-date-lookup-style', FROST_DATE_LOOKUP_URL . 'assets/css/frost-date-lookup.css', array(), '1.0.20');
+    wp_enqueue_script('frost-date-lookup-script', FROST_DATE_LOOKUP_URL . 'assets/js/frost-date-lookup.js', array('jquery'), '1.0.20', true);
     
     // Localize the script with new data
     wp_localize_script('frost-date-lookup-script', 'frost_date_lookup', array(
@@ -298,4 +299,149 @@ function plugin_activation_updater_notices() {
     }
 }
 add_action('admin_notices', 'plugin_activation_updater_notices');
+
+/**
+ * Force WordPress to check for plugin updates and display debug info
+ */
+function force_plugin_update_check() {
+    // Only run on admin pages
+    if (!is_admin()) {
+        return;
+    }
+    
+    // Clear update cache
+    delete_site_transient('update_plugins');
+    delete_site_transient('puc_check_count_' . $GLOBALS['plugin_slug']);
+    delete_site_transient('puc_request_info_' . $GLOBALS['plugin_slug']);
+    
+    // Force WordPress to check for plugin updates
+    wp_update_plugins();
+    
+    // Add admin notice with diagnostic info
+    add_action('admin_notices', 'display_update_debug_info');
+}
+add_action('admin_init', 'force_plugin_update_check');
+
+/**
+ * Display diagnostic information about the update process
+ */
+function display_update_debug_info() {
+    global $plugin_slug, $github_repo_url, $github_branch;
+    
+    // Get plugin data
+    $plugin_data = get_plugin_data(__FILE__);
+    $local_version = $plugin_data['Version'];
+    
+    // Try to get update information
+    $update_data = get_site_transient('update_plugins');
+    $has_update = isset($update_data->response[$plugin_slug . '/frost-date-lookup.php']);
+    
+    // Get information about available version
+    $available_version = $has_update ? $update_data->response[$plugin_slug . '/frost-date-lookup.php']->new_version : 'Unknown';
+    
+    // Check readme.txt status
+    $readme_txt_path = plugin_dir_path(__FILE__) . 'readme.txt';
+    $readme_md_path = plugin_dir_path(__FILE__) . 'README.md';
+    $readme_txt_exists = file_exists($readme_txt_path);
+    
+    // Force readme.txt generation
+    if (file_exists($readme_md_path)) {
+        // Create an instance to convert README.md to readme.txt
+        require_once plugin_dir_path(__FILE__) . 'includes/class-github-plugin-info.php';
+        $updater = new GitHub_Plugin_Updater(
+            __FILE__,
+            $plugin_slug,
+            $github_repo_url,
+            $github_branch,
+            null,
+            []
+        );
+        
+        // Manually trigger the conversion
+        $updater->convert_readme_to_txt();
+        
+        // Refresh status
+        $readme_txt_exists = file_exists($readme_txt_path);
+    }
+    
+    // Get readme.txt content for debugging
+    $readme_txt_content = '';
+    if ($readme_txt_exists) {
+        $readme_txt_content = file_get_contents($readme_txt_path);
+    }
+    
+    // Get the plugin info directly
+    $plugin_info = get_plugin_data(__FILE__, false, false);
+    
+    // Display diagnostic information
+    ?>
+    <div class="notice notice-info is-dismissible">
+        <h3>Frost Date Lookup Update Diagnostics</h3>
+        <p><strong>Local Version:</strong> <?php echo esc_html($local_version); ?></p>
+        <p><strong>Available Version:</strong> <?php echo esc_html($available_version); ?></p>
+        <p><strong>Repository URL:</strong> <?php echo esc_html($github_repo_url); ?></p>
+        <p><strong>Branch:</strong> <?php echo esc_html($github_branch); ?></p>
+        <p><strong>Update Available:</strong> <?php echo $has_update ? 'Yes' : 'No'; ?></p>
+        <p><strong>Last Check:</strong> <?php echo date('Y-m-d H:i:s'); ?></p>
+        
+        <h4>View Details Diagnostics</h4>
+        <p><strong>readme.txt Exists:</strong> <?php echo $readme_txt_exists ? 'Yes' : 'No'; ?></p>
+        <p><strong>README.md Exists:</strong> <?php echo file_exists($readme_md_path) ? 'Yes' : 'No'; ?></p>
+        <p><strong>Plugin Name:</strong> <?php echo esc_html($plugin_info['Name']); ?></p>
+        <p><strong>Plugin URI:</strong> <?php echo esc_html($plugin_info['PluginURI']); ?></p>
+        
+        <?php if ($readme_txt_exists): ?>
+        <div style="max-height: 150px; overflow-y: auto; background: #f5f5f5; padding: 10px; margin-top: 10px; border: 1px solid #ccc;">
+            <strong>readme.txt Preview (first 500 chars):</strong><br>
+            <pre><?php echo esc_html(substr($readme_txt_content, 0, 500)) . '...'; ?></pre>
+        </div>
+        <?php endif; ?>
+    </div>
+    <?php
+    
+    // Add recommendation if needed
+    if (!$readme_txt_exists) {
+        ?>
+        <div class="notice notice-warning is-dismissible">
+            <p><strong>Recommendation:</strong> Your readme.txt file is missing. This is required for the "View Details" link to work properly. Please deactivate and reactivate the plugin to generate it.</p>
+        </div>
+        <?php
+    }
+}
+
+/**
+ * Generate readme.txt on plugin activation and admin page loads
+ */
+function force_readme_txt_generation() {
+    // Run on admin pages and during AJAX calls
+    if (!is_admin() && !wp_doing_ajax()) {
+        return;
+    }
+    
+    // Check if readme.txt exists
+    $readme_txt_path = plugin_dir_path(__FILE__) . 'readme.txt';
+    $readme_md_path = plugin_dir_path(__FILE__) . 'README.md';
+    
+    if (!file_exists($readme_txt_path) && file_exists($readme_md_path)) {
+        global $plugin_slug, $github_repo_url, $github_branch;
+        
+        // Create an instance to convert README.md to readme.txt
+        require_once plugin_dir_path(__FILE__) . 'includes/class-github-plugin-info.php';
+        $updater = new GitHub_Plugin_Updater(
+            __FILE__,
+            $plugin_slug,
+            $github_repo_url,
+            $github_branch,
+            null,
+            []
+        );
+        
+        // Manually trigger the conversion
+        $updater->convert_readme_to_txt();
+    }
+}
+// Run on admin page loads and explicitly during plugin information API requests
+add_action('admin_init', 'force_readme_txt_generation');
+add_action('plugins_api', 'force_readme_txt_generation', 1); // Run before plugins_api is processed
+add_action('after_plugin_row', 'force_readme_txt_generation'); // Run when plugins list is displayed
 ?>

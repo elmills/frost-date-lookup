@@ -3,9 +3,9 @@
  * GitHub Plugin Updater
  *
  * @package   GitHubPluginUpdater
- * @author    Your Name
+ * @author    Everette Mills
  * @license   GPL-2.0+
- * @link      https://yourwebsite.com
+ * @link      https://blueboatsolutions.com
  *
  * This class handles WordPress plugin updates from GitHub repositories
  * and automatically converts README.md to readme.txt for the "View Details" link.
@@ -130,6 +130,9 @@ if (!class_exists('GitHub_Plugin_Updater')) {
             
             // Filter plugin info to ensure proper details
             add_filter("puc_request_info_result-{$this->plugin_slug}", [$this, 'ensure_plugin_info'], 10, 2);
+            
+            // Hook directly into WordPress plugin API for "View Details"
+            add_filter('plugins_api', [$this, 'plugin_info_hook'], 10, 3);
         }
 
         /**
@@ -141,17 +144,34 @@ if (!class_exists('GitHub_Plugin_Updater')) {
                 $this->plugin_file,
                 $this->plugin_slug
             );
-
-            // Set the branch
-            $this->update_checker->setBranch($this->branch);
             
-            // Enable release assets (for GitHub releases)
-            $this->update_checker->getVcsApi()->enableReleaseAssets();
+            // Force checking GitHub releases instead of branch
+            if (method_exists($this->update_checker, 'getVcsApi')) {
+                // Enable release assets (for GitHub releases)
+                $this->update_checker->getVcsApi()->enableReleaseAssets();
+
+                // Force checking of releases
+                if (method_exists($this->update_checker->getVcsApi(), 'shouldUseReleases')) {
+                    $this->update_checker->getVcsApi()->setReleaseFilterRegex('');
+                    add_filter('puc_request_info_query_args-' . $this->plugin_slug, function($args) {
+                        $args['preferReleasedUpdates'] = true;
+                        return $args;
+                    });
+                }
+            }
+            
+            // Set the branch as fallback if no releases are found
+            $this->update_checker->setBranch($this->branch);
             
             // Set authentication for private repositories
             if (!empty($this->access_token)) {
                 $this->update_checker->setAuthentication($this->access_token);
             }
+            
+            // Clear update cache on initialization
+            delete_site_transient('update_plugins');
+            delete_site_transient('puc_check_count_' . $this->plugin_slug);
+            delete_site_transient('puc_request_info_' . $this->plugin_slug);
         }
 
         /**
@@ -304,6 +324,89 @@ if (!class_exists('GitHub_Plugin_Updater')) {
         public function ensure_plugin_info($info, $response) {
             // Ensure readme.txt is up to date
             $this->convert_readme_to_txt();
+            
+            return $info;
+        }
+        
+        /**
+         * Hook directly into the WordPress plugin information API for the "View Details" screen
+         *
+         * @param false|object|array $result The result object or array. Default false.
+         * @param string $action The type of information being requested.
+         * @param object $args Plugin API arguments.
+         * @return false|object Plugin information or false if not our plugin.
+         */
+        public function plugin_info_hook($result, $action, $args) {
+            // Only handle plugin information requests for our plugin
+            if ($action !== 'plugin_information' || !isset($args->slug) || $args->slug !== $this->plugin_slug) {
+                return $result;
+            }
+            
+            // Ensure readme.txt is up-to-date
+            $this->convert_readme_to_txt();
+            
+            // Get plugin data
+            $plugin_data = get_plugin_data($this->plugin_file);
+            
+            // Read the readme.txt file
+            $readme_txt_path = plugin_dir_path($this->plugin_file) . 'readme.txt';
+            if (!file_exists($readme_txt_path)) {
+                return $result; // If no readme.txt, let WordPress handle it
+            }
+            
+            // Parse the readme.txt file content
+            $readme_txt_content = file_get_contents($readme_txt_path);
+            
+            // Create object with plugin info
+            $info = new stdClass();
+            $info->name = $plugin_data['Name'];
+            $info->slug = $this->plugin_slug;
+            $info->version = $plugin_data['Version'];
+            $info->author = $plugin_data['Author'];
+            $info->author_profile = $plugin_data['AuthorURI'];
+            $info->requires = '5.0'; // Default value
+            $info->tested = get_bloginfo('version');
+            $info->requires_php = '7.0'; // Default value
+            $info->last_updated = date('Y-m-d');
+            $info->sections = [];
+            
+            // Add description
+            preg_match('/== Description ==(.*?)(?=== |$)/s', $readme_txt_content, $desc_matches);
+            $info->sections['description'] = isset($desc_matches[1]) ? trim($desc_matches[1]) : '';
+            
+            // Add installation
+            preg_match('/== Installation ==(.*?)(?=== |$)/s', $readme_txt_content, $install_matches);
+            $info->sections['installation'] = isset($install_matches[1]) ? trim($install_matches[1]) : '';
+            
+            // Add FAQ
+            preg_match('/== Frequently Asked Questions ==(.*?)(?=== |$)/s', $readme_txt_content, $faq_matches);
+            $info->sections['faq'] = isset($faq_matches[1]) ? trim($faq_matches[1]) : '';
+            
+            // Add changelog
+            preg_match('/== Changelog ==(.*?)(?=== |$)/s', $readme_txt_content, $changelog_matches);
+            $info->sections['changelog'] = isset($changelog_matches[1]) ? trim($changelog_matches[1]) : '';
+            
+            // Parse additional metadata
+            preg_match('/=== (.*?) ===/', $readme_txt_content, $plugin_name_matches);
+            preg_match('/Contributors: (.*?)\\n/', $readme_txt_content, $contributors_matches);
+            preg_match('/Tags: (.*?)\\n/', $readme_txt_content, $tags_matches);
+            preg_match('/Requires at least: (.*?)\\n/', $readme_txt_content, $requires_matches);
+            preg_match('/Tested up to: (.*?)\\n/', $readme_txt_content, $tested_matches);
+            preg_match('/Requires PHP: (.*?)\\n/', $readme_txt_content, $requires_php_matches);
+            
+            // Set additional metadata
+            if (isset($plugin_name_matches[1])) $info->name = $plugin_name_matches[1];
+            if (isset($contributors_matches[1])) $info->contributors = array_map('trim', explode(',', $contributors_matches[1]));
+            if (isset($tags_matches[1])) $info->tags = array_map('trim', explode(',', $tags_matches[1]));
+            if (isset($requires_matches[1])) $info->requires = $requires_matches[1];
+            if (isset($tested_matches[1])) $info->tested = $tested_matches[1];
+            if (isset($requires_php_matches[1])) $info->requires_php = $requires_php_matches[1];
+            
+            // Add homepage URL
+            $info->homepage = $plugin_data['PluginURI'] ?: $this->repository_url;
+            
+            // Add download link pointing to GitHub repo
+            $info->download_link = sprintf('%s/archive/refs/heads/%s.zip', $this->repository_url, $this->branch);
             
             return $info;
         }
