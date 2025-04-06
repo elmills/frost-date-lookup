@@ -1,2 +1,0 @@
-# Exclude from releases but keep in repo
-.github/scripts/python-converter.py
